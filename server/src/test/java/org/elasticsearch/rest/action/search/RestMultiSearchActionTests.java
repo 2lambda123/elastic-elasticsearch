@@ -61,6 +61,21 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testVersionInBody() {
+        String content = "{ \"index\": \"some_index\", \"version\": true } \n {} \n";
+        BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("/some_index/_msearch")
+            .withContent(bytesContent, XContentType.JSON)
+            .build();
+
+        dispatchRequest(request);
+        assertTrue(request.hasParam("version"));
+        assertTrue(request.paramAsBoolean("version", null));
     }
 }
