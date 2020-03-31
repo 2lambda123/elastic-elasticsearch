@@ -32,6 +32,7 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.services.s3.model.SSEAlgorithm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -307,13 +308,21 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
 
         final ObjectMetadata md = new ObjectMetadata();
+        final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
         md.setContentLength(blobSize);
         if (blobStore.serverSideEncryption()) {
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            if (blobStore.sseAwsKeyIsEmpty()) {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            }else {
+                md.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
+                putRequest.setSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
+            }
         }
-        final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
+
         putRequest.setStorageClass(blobStore.getStorageClass());
         putRequest.setCannedAcl(blobStore.getCannedACL());
+
+        putRequest.setMetadata(md);
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> {
@@ -353,7 +362,12 @@ class S3BlobContainer extends AbstractBlobContainer {
         initRequest.setCannedACL(blobStore.getCannedACL());
         if (blobStore.serverSideEncryption()) {
             final ObjectMetadata md = new ObjectMetadata();
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            if (blobStore.sseAwsKeyIsEmpty())
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                else {
+                md.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
+                initRequest.withSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
+            }
             initRequest.setObjectMetadata(md);
         }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
