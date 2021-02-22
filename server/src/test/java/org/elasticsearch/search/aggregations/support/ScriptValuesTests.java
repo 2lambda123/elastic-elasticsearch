@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;

@@ -55,6 +55,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.TrackingMappedFieldsLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -255,8 +256,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
+        return (IFD) this.lookup().getForField(fieldType);
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -429,6 +429,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
             );
         }
         return this.lookup;
+    }
+
+    /**
+     * Get a search lookup that tracks circular references starting from {@code field}
+     */
+    public SearchLookup lookup(String field) {
+        return new SearchLookup(
+            new TrackingMappedFieldsLookup(this::getFieldType).trackingField(field)::get,
+            (f, s) -> indexFieldDataService.apply(f, fullyQualifiedIndex.getName(), s)
+        );
     }
 
     public NestedScope nestedScope() {

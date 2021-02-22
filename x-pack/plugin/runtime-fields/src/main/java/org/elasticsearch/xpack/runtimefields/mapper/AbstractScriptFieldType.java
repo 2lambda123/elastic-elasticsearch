@@ -93,7 +93,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
          * detection code as though we were resolving field data for this field.
          * We're not, but running the query is close enough.
          */
-        return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+        return leafFactory(context.lookup(name()));
     }
 
     @Override

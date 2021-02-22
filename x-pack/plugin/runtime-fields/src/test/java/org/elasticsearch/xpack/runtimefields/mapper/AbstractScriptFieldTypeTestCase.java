@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
@@ -29,6 +31,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.TrackingMappedFieldsLookup;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 
 import java.io.IOException;
@@ -38,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyString;
@@ -207,6 +211,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
+        when(context.lookup(anyString())).thenAnswer(invocationOnMock -> {
+            String field = (String) invocationOnMock.getArguments()[0];
+            TrackingMappedFieldsLookup tracker = new TrackingMappedFieldsLookup(context::getFieldType).trackingField(field);
+            return new SearchLookup(tracker::get, (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null));
+        });
         return context;
     }
 
@@ -214,7 +223,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         checkExpensiveQuery(MappedFieldType::existsQuery);
     }
 
-    public void testExistsQueryInLoop() {
+    public void testExistsQueryInLoop() throws IOException {
         checkLoop(MappedFieldType::existsQuery);
     }
 
@@ -231,7 +240,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         checkExpensiveQuery(this::randomRangeQuery);
     }
 
-    public void testRangeQueryInLoop() {
+    public void testRangeQueryInLoop() throws IOException {
         assumeTrue("Impl does not support range queries", supportsRangeQueries());
         checkLoop(this::randomRangeQuery);
     }
@@ -241,7 +250,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         checkExpensiveQuery(this::randomTermQuery);
     }
 
-    public void testTermQueryInLoop() {
+    public void testTermQueryInLoop() throws IOException {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermQuery);
     }
@@ -251,7 +260,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         checkExpensiveQuery(this::randomTermsQuery);
     }
 
-    public void testTermsQueryInLoop() {
+    public void testTermsQueryInLoop() throws IOException {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
         checkLoop(this::randomTermsQuery);
     }
@@ -302,8 +311,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         );
     }
 
-    protected final void checkLoop(BiConsumer<MappedFieldType, SearchExecutionContext> queryBuilder) {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(loopFieldType(), mockContext()));
+    protected final void checkLoop(BiFunction<MappedFieldType, SearchExecutionContext, Query> queryBuilder) throws IOException {
+        Query query = queryBuilder.apply(loopFieldType(), mockContext(true, loopFieldType()));
+        MemoryIndex mindex = new MemoryIndex();
+        IndexSearcher searcher = mindex.createSearcher();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> searcher.search(query, 1));
         assertThat(e.getMessage(), equalTo("Cyclic dependency detected while resolving runtime fields: test -> test"));
     }
 
