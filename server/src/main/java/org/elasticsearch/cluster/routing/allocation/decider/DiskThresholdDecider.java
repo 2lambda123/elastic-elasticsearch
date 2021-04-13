@@ -480,6 +480,10 @@ public class DiskThresholdDecider extends AllocationDecider {
                 }
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;
+        } else if (shard.primary() == false && shard.active() == false) {
+            // if current shard is an inactive replica, evaluate shard size by primary shard.
+            ShardRouting primaryShard = routingTable.shardRoutingTable(shard.shardId()).primaryShard();
+            return clusterInfo.getShardSize(primaryShard, clusterInfo.getShardSize(shard, defaultValue));
         } else {
             if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                 return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
