@@ -121,6 +121,8 @@ if [[ $DAEMONIZE = false ]]; then
     "$JAVA" \
     "$XSHARE" \
     $ES_JAVA_OPTS \
+    --add-modules=jdk.incubator.foreign \
+    --enable-native-access=ALL-UNNAMED \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
@@ -134,6 +136,8 @@ else
     "$JAVA" \
     "$XSHARE" \
     $ES_JAVA_OPTS \
+    --add-modules=jdk.incubator.foreign \
+    --enable-native-access=ALL-UNNAMED \
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \

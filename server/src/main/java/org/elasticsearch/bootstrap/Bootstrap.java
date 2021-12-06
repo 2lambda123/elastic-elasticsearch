@@ -14,7 +14,6 @@ import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
@@ -114,11 +113,7 @@ final class Bootstrap {
 
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
-            } else {
-                Natives.tryMlockall();
-            }
+            Natives.tryLockMemory();
         }
 
         // listener for windows close event
@@ -147,9 +142,9 @@ final class Bootstrap {
             // we've already logged this.
         }
 
-        Natives.trySetMaxNumberOfThreads();
-        Natives.trySetMaxSizeVirtualMemory();
-        Natives.trySetMaxFileSize();
+        Natives.tryRetrieveMaxNumberOfThreads();
+        Natives.tryRetrieveMaxVirtualMemorySize();
+        Natives.tryRetrieveMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
