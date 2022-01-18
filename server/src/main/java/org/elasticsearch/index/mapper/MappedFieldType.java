@@ -433,6 +433,14 @@ public abstract class MappedFieldType {
         return Relation.INTERSECTS;
     }
 
+    /**
+     * Return whether a field is considered to used only an internal implementation detail, e.g. `_field_names` or `_nested_path`.
+     * This information can be used to e.g. dissallow certain operations on this field.
+     */
+    public boolean isInternalField() {
+        return false;
+    }
+
     /** @throws IllegalArgumentException if the fielddata is not supported on this type.
      *  An IllegalArgumentException is needed in order to return an http error 400
      *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}

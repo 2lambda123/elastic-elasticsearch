@@ -439,4 +439,25 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
         assertFalse(it.hasNext());
     }
+
+    public void testAliasToJoinFieldError() throws IOException {
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(
+            mapping(
+                b -> b.startObject("join_field")
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
+                    .endObject()
+                    .startObject("alias_field")
+                        .field("type", "alias")
+                        .field("path", "join_field")
+                    .endObject()
+            )
+        ));
+        assertEquals(
+            "Invalid [path] value [join_field] for field alias [alias_field]: an alias cannot refer to an internal field.",
+            ex.getMessage()
+        );
+    }
 }

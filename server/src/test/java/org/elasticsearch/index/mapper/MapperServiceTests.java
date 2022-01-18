@@ -153,6 +153,23 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Invalid [path] value [nested.field] for field alias [alias]"));
     }
 
+     public void testFieldAliasWithInternalField() throws Throwable {
+         MapperService mapperService = createMapperService(mapping(b -> {}));
+
+         MapperParsingException e = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+             b.startObject("alias");
+             {
+                 b.field("type", "alias");
+                 b.field("path", "_field_names");
+             }
+             b.endObject();
+         })));
+         assertEquals(
+             "Invalid [path] value [_field_names] for field alias [alias]: an alias cannot refer to an internal field.",
+             e.getMessage()
+         );
+     }
+
     public void testTotalFieldsLimitWithFieldAlias() throws Throwable {
 
         int numberOfFieldsIncludingAlias = 2;

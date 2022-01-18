@@ -122,6 +122,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
         }
+
+        @Override
+        public boolean isInternalField() {
+            return true;
+        }
     }
 
     private final boolean enabled;

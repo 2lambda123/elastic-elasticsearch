@@ -94,6 +94,10 @@ public final class FieldAliasMapper extends Mapper {
                 "Invalid [path] value [" + path + "] for field alias [" + name() + "]: an alias cannot refer to another alias."
             );
         }
+        if (mappers.fieldTypesLookup().get(path).isInternalField()) {
+            throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
+                name() + "]: an alias cannot refer to an internal field.");
+        }
         String aliasScope = mappers.getNestedParent(name);
         String pathScope = mappers.getNestedParent(path);
 
@@ -135,6 +139,7 @@ public final class FieldAliasMapper extends Mapper {
             this.name = name;
         }
 
+        @Override
         public String name() {
             return this.name;
         }

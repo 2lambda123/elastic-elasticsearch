@@ -189,6 +189,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
         }
+
+        @Override
+        public boolean isInternalField() {
+            return true;
+        }
     }
 
     private static boolean checkRelationsConflicts(List<Relations> previous, List<Relations> current, Conflicts conflicts) {
