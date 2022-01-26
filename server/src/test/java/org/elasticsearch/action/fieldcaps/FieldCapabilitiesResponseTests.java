@@ -78,7 +78,8 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             randomBoolean(),
             randomBoolean(),
             randomFrom(TimeSeriesParams.MetricType.values()),
-            meta
+            meta,
+            randomBoolean()
         );
     }
 

@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -599,5 +600,13 @@ public abstract class MappedFieldType {
                 + typeName()
                 + "]."
         );
+    }
+
+    /**
+     * Returns true if *all* documents in the shard are single-valued.
+     * @throws IOException Errors accessing data
+     */
+    public boolean isSingleValued(Searcher searcher) throws IOException {
+        return false;
     }
 }

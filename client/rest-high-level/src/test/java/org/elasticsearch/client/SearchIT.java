@@ -34,6 +34,8 @@ import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,6 +91,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
@@ -107,6 +110,12 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchIT extends ESRestHighLevelClientTestCase {
+    int totalNumDocsIndexed = 0;
+
+    private void addDoc(Request addDocRequest) throws IOException {
+        client().performRequest(addDocRequest);
+        totalNumDocsIndexed++;
+    }
 
     @Before
     public void indexDocuments() throws IOException {
@@ -114,34 +123,34 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index/_doc/1");
             doc1.setJsonEntity("""
                 {"type":"type1", "id":1, "num":10, "num2":50}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index/_doc/2");
             doc2.setJsonEntity("""
                 {"type":"type1", "id":2, "num":20, "num2":40}""");
-            client().performRequest(doc2);
+            addDoc(doc2);
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index/_doc/3");
             doc3.setJsonEntity("""
                 {"type":"type1", "id":3, "num":50, "num2":35}""");
-            client().performRequest(doc3);
+            addDoc(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index/_doc/4");
             doc4.setJsonEntity("""
                 {"type":"type2", "id":4, "num":100, "num2":10}""");
-            client().performRequest(doc4);
+            addDoc(doc4);
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index/_doc/5");
             doc5.setJsonEntity("""
                 {"type":"type2", "id":5, "num":100, "num2":10}""");
-            client().performRequest(doc5);
+            addDoc(doc5);
         }
 
         {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/1");
             doc1.setJsonEntity("""
                 {"id":1, "field":"value1", "rating": 7}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
             Request doc2 = new Request(HttpPut.METHOD_NAME, "/index1/_doc/2");
             doc2.setJsonEntity("""
                 {"id":2, "field":"value2"}""");
-            client().performRequest(doc2);
+            addDoc(doc2);
         }
 
         {
@@ -160,22 +169,22 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc3 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/3");
             doc3.setJsonEntity("""
                 {"id":3, "field":"value1", "rating": "good"}""");
-            client().performRequest(doc3);
+            addDoc(doc3);
             Request doc4 = new Request(HttpPut.METHOD_NAME, "/index2/_doc/4");
             doc4.setJsonEntity("""
                 {"id":4, "field":"value2"}""");
-            client().performRequest(doc4);
+            addDoc(doc4);
         }
 
         {
             Request doc5 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/5");
             doc5.setJsonEntity("""
                 {"id":5, "field":"value1"}""");
-            client().performRequest(doc5);
+            addDoc(doc5);
             Request doc6 = new Request(HttpPut.METHOD_NAME, "/index3/_doc/6");
             doc6.setJsonEntity("""
                 {"id":6, "field":"value2"}""");
-            client().performRequest(doc6);
+            addDoc(doc6);
         }
 
         {
@@ -199,7 +208,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             Request doc1 = new Request(HttpPut.METHOD_NAME, "/index4/_doc/1");
             doc1.setJsonEntity("""
                 {"id":1, "field1":"value1", "field2":"value2"}""");
-            client().performRequest(doc1);
+            addDoc(doc1);
 
             Request createFilteredAlias = new Request(HttpPost.METHOD_NAME, "/_aliases");
             createFilteredAlias.setJsonEntity("""
@@ -219,6 +228,46 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                   ]
                 }""");
             client().performRequest(createFilteredAlias);
+        }
+
+        // Numeric tests with field caps - include all numeric types with values indexed as arrays and single values
+        {
+            String numericFieldDefs = "";
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                if (numericFieldDefs.length() > 0) {
+                    numericFieldDefs += ",";
+                }
+                numericFieldDefs += "\"" + numType.typeName() + "\":{" + "\"type\": \"" + numType.typeName() + "\"" + "}";
+            }
+
+            String mapping = "{"
+                + "  \"mappings\": {"
+                + "    \"properties\": {"
+                + "         "
+                + numericFieldDefs
+                + "      }"
+                + "    }"
+                + "  }"
+                + "}";
+            Request createNumeric = new Request(HttpPut.METHOD_NAME, "/index_numeric");
+            createNumeric.setJsonEntity(mapping);
+            client().performRequest(createNumeric);
+
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric/_doc");
+                doc1.setJsonEntity("{\"" + numType.typeName() + "\":1}");
+                addDoc(doc1);
+            }
+
+            Request createNumericArray = new Request(HttpPut.METHOD_NAME, "/index_numeric_array");
+            createNumericArray.setJsonEntity(mapping);
+            client().performRequest(createNumericArray);
+
+            for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+                Request doc1 = new Request(HttpPost.METHOD_NAME, "/index_numeric_array/_doc");
+                doc1.setJsonEntity("{\"" + numType.typeName() + "\":[1,2]}");
+                addDoc(doc1);
+            }
         }
 
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -1309,6 +1358,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             false,
             true,
             true,
+            true,
             new String[] { "index2" },
             null,
             null,
@@ -1320,6 +1370,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             "rating",
             "long",
             false,
+            true,
             true,
             true,
             new String[] { "index1" },
@@ -1340,12 +1391,70 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             false,
             true,
             false,
+            false,
             null,
             null,
             null,
             Collections.emptyMap()
         );
         assertEquals(expectedTextCapabilities, fieldResponse.get("text"));
+    }
+
+    public void testAllNumericFieldCapsCardinality() throws IOException {
+        String[] fieldNames = Stream.of(NumberType.values()).map(n -> n.typeName()).toArray(String[]::new);
+        FieldCapabilitiesRequest singleValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric").fields(fieldNames);
+        FieldCapabilitiesResponse singleValuedResponse = execute(
+            singleValuedRequest,
+            highLevelClient()::fieldCaps,
+            highLevelClient()::fieldCapsAsync
+        );
+        assertThat(singleValuedResponse.getIndices(), arrayContaining("index_numeric"));
+
+        for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+            Map<String, FieldCapabilities> fieldResponse = singleValuedResponse.getField(numType.typeName());
+            assertEquals(1, fieldResponse.size());
+            FieldCapabilities expectedNumericCapabilities = new FieldCapabilities(
+                numType.typeName(),
+                numType.typeName(),
+                false,
+                true,
+                true,
+                true, // expect a single-valued response
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            );
+            assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
+        }
+
+        FieldCapabilitiesRequest multiValuedRequest = new FieldCapabilitiesRequest().indices("index_numeric", "index_numeric_array")
+            .fields(fieldNames);
+        FieldCapabilitiesResponse multiValuedResponse = execute(
+            multiValuedRequest,
+            highLevelClient()::fieldCaps,
+            highLevelClient()::fieldCapsAsync
+        );
+        assertThat(multiValuedResponse.getIndices(), arrayContaining("index_numeric", "index_numeric_array"));
+
+        for (NumberType numType : NumberFieldMapper.NumberType.values()) {
+            Map<String, FieldCapabilities> fieldResponse = multiValuedResponse.getField(numType.typeName());
+            assertEquals(1, fieldResponse.size());
+            FieldCapabilities expectedNumericCapabilities = new FieldCapabilities(
+                numType.typeName(),
+                numType.typeName(),
+                false,
+                true,
+                true,
+                false, // expect a multi-valued response
+                null,
+                null,
+                null,
+                Collections.emptyMap()
+            );
+            assertEquals(expectedNumericCapabilities, fieldResponse.get(numType.typeName()));
+        }
+
     }
 
     public void testFieldCapsWithNonExistentFields() throws IOException {
@@ -1392,7 +1501,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         CountRequest countRequest = new CountRequest();
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
-        assertEquals(12, countResponse.getCount());
+        assertEquals(totalNumDocsIndexed, countResponse.getCount());
     }
 
     public void testCountOneIndexMatchQuery() throws IOException {

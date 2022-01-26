@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.VersionDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Supplier;
 
@@ -33,6 +35,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class VersionFieldType extends MappedFieldType {
+
+        @Override
+        public boolean isSingleValued(Searcher searcher) throws IOException {
+            return true;
+        }
 
         public static final VersionFieldType INSTANCE = new VersionFieldType();
 
