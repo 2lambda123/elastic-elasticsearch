@@ -34,6 +34,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SimpleTermCountEnum;
+import org.elasticsearch.index.mapper.TermCount;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -41,8 +43,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
-import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
