@@ -153,7 +153,9 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-  -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+  -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
+  --module-path="%ES_MODULEPATH%" ^
+  --module="org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 endlocal
 endlocal

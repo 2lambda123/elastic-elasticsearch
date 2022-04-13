@@ -41,3 +41,8 @@ tasks.named("thirdPartyAudit").configure {
           'org/osgi/framework/wiring/BundleWiring'
   )
 }
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-module") // qualified exports
+}

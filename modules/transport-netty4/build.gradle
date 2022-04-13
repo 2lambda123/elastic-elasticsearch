@@ -23,7 +23,7 @@ apply plugin: 'elasticsearch.publish'
  */
 esplugin {
   description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+  classname 'org.elasticsearch.transport.netty4/org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
@@ -42,6 +42,11 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
+  options.compilerArgs.add("-Xlint:-module") // module name ends with a digit
 }
 
 restResources {
@@ -107,6 +112,10 @@ tasks.named("thirdPartyAudit").configure {
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
     'org.apache.log4j.Logger',
+    'org.apache.logging.log4j.Level',
+    'org.apache.logging.log4j.LogManager',
+    'org.apache.logging.log4j.Logger',
+    'org.apache.logging.log4j.spi.ExtendedLoggerWrapper',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
@@ -177,6 +186,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
+
 
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',

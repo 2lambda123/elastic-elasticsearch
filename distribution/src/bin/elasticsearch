@@ -43,6 +43,7 @@ while [ $# -gt 0 ]; do
    fi
 done
 
+echo "temp dir"
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
@@ -115,8 +116,9 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
-    -cp "$ES_CLASSPATH" \
-    org.elasticsearch.bootstrap.Elasticsearch \
+    -Des.bundled_jdk="$ES_BUNDLED_JDK" \
+    --module-path "$ES_MODULEPATH" \
+    -m org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch \
     "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
@@ -125,8 +127,9 @@ else
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
-    -cp "$ES_CLASSPATH" \
-    org.elasticsearch.bootstrap.Elasticsearch \
+    -Des.bundled_jdk="$ES_BUNDLED_JDK" \
+    --module-path "$ES_MODULEPATH" \
+    -m org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch \
     "${ARG_LIST[@]}" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?

@@ -16,7 +16,7 @@ archivesBaseName = 'x-pack-core'
 esplugin {
   name 'x-pack-core'
   description 'Elasticsearch Expanded Pack Plugin - Core'
-  classname 'org.elasticsearch.xpack.core.XPackPlugin'
+  classname 'org.elasticsearch.xcore/org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
   requiresKeystore false
 }
@@ -35,7 +35,7 @@ dependencies {
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
   api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
   api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
@@ -58,6 +58,10 @@ dependencies {
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-requires-automatic,-missing-explicit-ctor")
 }
 
 ext.expansions = [
@@ -117,7 +121,12 @@ tasks.named("thirdPartyAudit").configure {
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
-          'javax.jms.Message'
+      'org.apache.log4j.Category',
+      'org.apache.log4j.Level',
+      'org.apache.log4j.Logger',
+      'org.apache.log4j.Priority'
+
+
   )
 }
 

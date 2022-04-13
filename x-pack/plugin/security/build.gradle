@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
   name 'x-pack-security'
   description 'Elasticsearch Expanded Pack Plugin - Security'
-  classname 'org.elasticsearch.xpack.security.Security'
+  classname 'org.elasticsearch.security/org.elasticsearch.xpack.security.Security'
   requiresKeystore true
   extendedPlugins = ['x-pack-core']
 }
@@ -141,6 +141,10 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-exports,-missing-explicit-ctor,-requires-automatic")
 }
 
 tasks.named("processInternalClusterTestResources").configure {
@@ -376,6 +380,21 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
         'org.bouncycastle.crypto.InvalidCipherTextException',
         'org.bouncycastle.jce.provider.BouncyCastleProvider',
+    'org.apache.logging.log4j.Level',
+    'org.apache.logging.log4j.LogManager',
+    'org.apache.logging.log4j.Logger',
+    'org.apache.logging.log4j.Marker',
+    'org.apache.logging.log4j.MarkerManager',
+    'org.apache.logging.log4j.ThreadContext',
+    'org.apache.logging.log4j.message.Message',
+    'org.apache.logging.log4j.message.StructuredDataMessage',
+    'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+    'org.apache.logging.log4j.spi.ExtendedLogger',
+    'org.apache.logging.log4j.spi.LoggerContext',
+    'org.apache.logging.log4j.spi.LoggerContextFactory',
+    'org.apache.logging.log4j.status.StatusLogger',
+    'org.apache.logging.log4j.util.LoaderUtil',
+    'org.apache.logging.log4j.util.StackLocatorUtil'
   )
 
   ignoreViolations(

@@ -10,8 +10,6 @@ package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -22,6 +20,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.test.mockito.SecureMockMaker;
@@ -125,6 +125,10 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
                 }
+
+                // TODO CH: find a better location for this, or move up initialization
+                perms.add(new RuntimePermission("getStackWalkerWithClassReference"));
+
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
                 if (System.getProperty("tests.gradle") == null) {
@@ -183,6 +187,14 @@ public class BootstrapForTesting {
                         properties.load(stream);
                     }
                     String clazz = properties.getProperty("classname");
+
+                    int i;
+                    if ((i = clazz.indexOf('/')) != -1) {
+                        // it's a module qualified name
+                        // this.moduleName = classname.substring(0, i);
+                        clazz = clazz.substring(i + 1);
+                    }
+
                     if (clazz != null) {
                         Class.forName(clazz);
                     }
@@ -201,7 +213,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
-        addClassCodebase(codebases, "elasticsearch-x-content", "org.elasticsearch.xcontent.XContent");
+        addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         return codebases;
     }
 
