@@ -52,21 +52,23 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
 
-        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
+        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format).preferStored();
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
-        String field = fieldType.name();
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        return fetchSourceValue(fieldType, List.of(values));
+    }
 
-        ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, List.of(values)));
-        return fetcher.fetchValues(lookup, new ArrayList<>());
+    /**
+     * Select a random {@link ValueFetcher} from a {@link ValueFetcherSource}. Use
+     * to test {@linkplain ValueFetcher} when any implementation will do.
+     */
+    public static ValueFetcher randomValueFetcher(ValueFetcherSource source) {
+        return randomBoolean() ? source.preferStored() : source.forceDocValues();
     }
 }

@@ -45,7 +45,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -56,8 +55,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Base class for testing {@link Mapper}s.
@@ -519,9 +516,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected final MapperService randomFetchTestMapper() throws IOException {
-        return createMapperService(mapping(b -> {
-            b.startObject("field");
-            randomFetchTestFieldConfig(b);
+        return createMapperService(topMapping(b -> {
+            if (supportsFetchWithSourceDisabled() && randomBoolean()) {
+                b.startObject("_source").field("enabled", false).endObject();
+            }
+            b.startObject("properties");
+            {
+                b.startObject("field");
+                randomFetchTestFieldConfig(b);
+                b.endObject();
+            }
             b.endObject();
         }));
     }
@@ -533,6 +537,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         minimalMapping(b);
+    }
+
+    /**
+     * Field configuration for {@link #testFetch} and {@link #testFetchMany}.
+     * Default implementation delegates to {@link #minimalMapping} but can
+     * be overridden to randomize the field type and options.
+     */
+    protected boolean supportsFetchWithSourceDisabled() {
+        return true;
     }
 
     /**
@@ -579,24 +592,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        ValueFetcher docValueFetcher = new DocValueFetcher(
-            ft.docValueFormat(format, null),
-            ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
-        );
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
-        when(searchExecutionContext.getForField(ft)).thenAnswer(
-            inv -> { return fieldDataLookup().apply(ft, () -> { throw new UnsupportedOperationException(); }); }
-        );
-        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+        ValueFetcherSource fetcherSource = ft.valueFetcher(searchExecutionContext, format);
+        ValueFetcher docValueFetcher = fetcherSource.forceDocValues();
+        ValueFetcher preferSource = fetcherSource.preferStored();
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             SourceLookup sourceLookup = new SourceLookup();
             sourceLookup.setSegmentAndDocument(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
-            nativeFetcher.setNextReader(ir.leaves().get(0));
+            preferSource.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(sourceLookup, new ArrayList<>());
-            List<Object> fromNative = nativeFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            List<Object> fromNative = preferSource.fetchValues(sourceLookup, new ArrayList<>());
             /*
              * The native fetcher uses byte, short, etc but doc values always
              * uses long or double. This difference is fine because on the outside

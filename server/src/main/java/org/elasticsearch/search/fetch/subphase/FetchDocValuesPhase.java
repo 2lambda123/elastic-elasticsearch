@@ -46,9 +46,9 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                context.getSearchExecutionContext().getForField(ft)
             );
-            fields.add(new DocValueField(fieldAndFormat.field, fetcher));
+            fields.add((new DocValueField(fieldAndFormat.field, fetcher)));
         }
 
         return new FetchSubPhaseProcessor() {

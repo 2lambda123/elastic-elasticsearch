@@ -172,8 +172,23 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     }
 
     @Override
-    public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+    public final ValueFetcherSource valueFetcher(SearchExecutionContext context, String format) {
+        return new ValueFetcherSource() {
+            @Override
+            public ValueFetcher preferStored() {
+                return new DocValueFetcher(docValueFormat(format, null), context.getForField(AbstractScriptFieldType.this));
+            }
+
+            @Override
+            public ValueFetcher preferStoredOrEmpty() {
+                return preferStored();
+            }
+
+            @Override
+            public ValueFetcher forceDocValues() {
+                throw new UnsupportedOperationException("[" + name() + "] may require source because it is a runtime field");
+            }
+        };
     }
 
     /**
