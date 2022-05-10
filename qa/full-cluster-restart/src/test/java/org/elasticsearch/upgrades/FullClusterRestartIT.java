@@ -1594,7 +1594,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
         assumeTrue(".tasks became a system index in 7.10.0", getOldClusterVersion().onOrAfter(Version.V_7_10_0));
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
-            + "access to system indices will be prevented by default";
+            + "access to system indices may be prevented by default";
         if (isRunningAgainstOldCluster()) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
