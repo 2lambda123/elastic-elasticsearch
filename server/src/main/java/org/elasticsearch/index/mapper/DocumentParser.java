@@ -692,6 +692,8 @@ public final class DocumentParser {
         ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
         String parentName = parentMapper.name();
         while (dynamic == null) {
+            //splitting on dots is fine as long as it's done on the name of the parent object
+            //and not on the leaf field name (which could contain dots of its own when subobjects are disabled)
             int lastDotNdx = parentName.lastIndexOf('.');
             if (lastDotNdx == -1) {
                 // no dot means that the parent is the root
@@ -703,8 +705,7 @@ public final class DocumentParser {
                 // If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
                 ObjectMapper.Builder dynamicObjectMapperBuilder = context.getDynamicObjectMapperBuilder(parentName);
                 if (dynamicObjectMapperBuilder == null) {
-                    // it can still happen that the path is ambiguous and we are not able to locate the parent
-                    break;
+                    throw new IllegalStateException("Missing intermediate object [" + parentName + "]");
                 }
                 dynamic = dynamicObjectMapperBuilder.dynamic;
             } else {
