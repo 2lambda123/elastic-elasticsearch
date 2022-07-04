@@ -20,6 +20,10 @@ publishing {
   }
 }
 
+repositories {
+  maven { url 'https://repository.apache.org/snapshots' }
+}
+
 archivesBaseName = 'elasticsearch'
 
 dependencies {
@@ -222,6 +226,9 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
+            'com.lmax.disruptor.SequenceBarrier',
+            'com.lmax.disruptor.TimeoutException',
+            'org.osgi.framework.ServiceReference',
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 }
