@@ -85,8 +85,12 @@ public abstract class MappedFieldType {
      * field data from and generate a representation of doc values.
      */
     public enum FielddataOperation {
+        // Fielddata to be used as part of a search or aggregation
         SEARCH,
-        SCRIPT
+        // Fielddata to be used as part of a script
+        SCRIPT,
+        // Fielddata that must be read from source
+        SOURCE
     }
 
     /**
@@ -212,6 +216,13 @@ public abstract class MappedFieldType {
             context,
             "[" + name + "] field which is of type [" + typeName() + "], does not support case insensitive term queries"
         );
+    }
+
+    /**
+     * Generates a query that will only match documents with a field that contains exactly this value
+     */
+    public Query exactQuery(Object value, SearchExecutionContext context) {
+        return new ConstantScoreQuery(termQuery(value, context));
     }
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a

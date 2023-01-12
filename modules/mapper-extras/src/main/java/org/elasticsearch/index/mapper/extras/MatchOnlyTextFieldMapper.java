@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
+import org.elasticsearch.index.mapper.TextFieldExactQuery;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -247,6 +248,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());
+        }
+
+        @Override
         public Query fuzzyQuery(
             Object value,
             Fuzziness fuzziness,
@@ -319,7 +325,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
             }
             if (textFieldType.isSyntheticSource()) {

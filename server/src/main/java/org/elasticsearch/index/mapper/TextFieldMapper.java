@@ -950,6 +950,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query exactQuery(Object value, SearchExecutionContext context) {
+            return new TextFieldExactQuery(this, context.getForField(this, FielddataOperation.SOURCE), value.toString());
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
             if (operation == FielddataOperation.SEARCH) {
@@ -980,9 +985,6 @@ public class TextFieldMapper extends FieldMapper {
                 );
             }
 
-            if (operation != FielddataOperation.SCRIPT) {
-                throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
-            }
             if (isSyntheticSource) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
