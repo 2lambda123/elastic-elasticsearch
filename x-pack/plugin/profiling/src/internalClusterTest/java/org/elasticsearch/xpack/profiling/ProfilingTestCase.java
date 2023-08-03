@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -116,12 +117,13 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         waitForIndices();
         ensureGreen();
 
+        String timestamp = DateFormatter.forPattern("strict_date_optional_time_nanos").format(Instant.now());
         // ensure that we have this in every index, so we find an event
         for (String idx : eventsIndices) {
             indexDoc(
                 idx,
                 "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", Instant.now().toEpochMilli(), "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
+                Map.of("@timestamp", timestamp, "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
             );
         }
 
