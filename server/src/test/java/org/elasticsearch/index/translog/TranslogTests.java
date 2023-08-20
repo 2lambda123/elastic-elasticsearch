@@ -213,7 +213,8 @@ public class TranslogTests extends ESTestCase {
             config.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         return new Translog(
             config,
@@ -260,7 +261,13 @@ public class TranslogTests extends ESTestCase {
     private Translog create(Path path) throws IOException {
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path);
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String translogUUID = Translog.createEmptyTranslog(
+            path,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get(),
+            randomBoolean()
+        );
         return new Translog(
             translogConfig,
             translogUUID,
@@ -1428,7 +1435,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
 
         try (
@@ -1543,7 +1551,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
 
         try (
@@ -1971,6 +1980,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)),
             corrupted,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.CREATE_NEW
         );
@@ -1994,6 +2004,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)),
             read,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.TRUNCATE_EXISTING
         );
@@ -2866,7 +2877,8 @@ public class TranslogTests extends ESTestCase {
                 SequenceNumbers.NO_OPS_PERFORMED,
                 shardId,
                 channelFactory,
-                primaryTerm.get()
+                primaryTerm.get(),
+                randomBoolean()
             );
         }
         return new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> {}) {
@@ -3240,7 +3252,8 @@ public class TranslogTests extends ESTestCase {
                     config.getTranslogPath(),
                     SequenceNumbers.NO_OPS_PERFORMED,
                     shardId,
-                    primaryTerm.get()
+                    primaryTerm.get(),
+                    randomBoolean()
                 );
             }
             try (
@@ -3296,6 +3309,7 @@ public class TranslogTests extends ESTestCase {
             FileChannel::open,
             tempDir.resolve("foo.cpk"),
             checkpoint,
+            randomBoolean(),
             StandardOpenOption.WRITE,
             StandardOpenOption.CREATE_NEW
         );
@@ -3312,7 +3326,7 @@ public class TranslogTests extends ESTestCase {
                 failSwitch.failAlways();
                 return channel;
 
-            }, tempDir.resolve("foo.cpk"), checkpoint2, StandardOpenOption.WRITE);
+            }, tempDir.resolve("foo.cpk"), checkpoint2, randomBoolean(), StandardOpenOption.WRITE);
             fail("should have failed earlier");
         } catch (MockDirectoryWrapper.FakeIOException ex) {
             // fine
@@ -3719,7 +3733,13 @@ public class TranslogTests extends ESTestCase {
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         Path path = createTempDir();
         final TranslogConfig translogConfig = getTranslogConfig(path);
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        final String translogUUID = Translog.createEmptyTranslog(
+            path,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get(),
+            randomBoolean()
+        );
         MisbehavingTranslog misbehavingTranslog = new MisbehavingTranslog(
             translogConfig,
             translogUUID,
@@ -3852,7 +3872,8 @@ public class TranslogTests extends ESTestCase {
             config.getTranslogPath(),
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         Set<Long> persistedSeqNos = ConcurrentCollections.newConcurrentSet();
         AtomicLong lastGlobalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -3947,7 +3968,8 @@ public class TranslogTests extends ESTestCase {
             SequenceNumbers.NO_OPS_PERFORMED,
             shardId,
             channelFactory,
-            primaryTerm.get()
+            primaryTerm.get(),
+            randomBoolean()
         );
         final Translog translog = new Translog(
             config,

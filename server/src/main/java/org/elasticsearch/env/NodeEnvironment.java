@@ -46,6 +46,7 @@ import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -167,6 +168,8 @@ public final class NodeEnvironment implements Closeable {
 
     private final NodeMetadata nodeMetadata;
 
+    private final Settings settings;
+
     /**
      * Seed for determining a persisted unique uuid of this node. If the node has already a persisted uuid on disk,
      * this seed will be ignored and the uuid from disk will be reused.
@@ -264,8 +267,9 @@ public final class NodeEnvironment implements Closeable {
      * @param environment global environment
      */
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        boolean success = false;
+        this.settings = settings;
 
+        boolean success = false;
         try {
             sharedDataPath = environment.sharedDataFile();
 
@@ -317,8 +321,10 @@ public final class NodeEnvironment implements Closeable {
                         + Version.CURRENT
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
                     Files.writeString(legacyNodesPath, content);
-                    IOUtils.fsync(legacyNodesPath, false);
-                    IOUtils.fsync(dataPath, true);
+                    if (IndexModule.NODE_STORE_USE_FSYNC.get(settings)) {
+                        IOUtils.fsync(legacyNodesPath, false);
+                        IOUtils.fsync(dataPath, true);
+                    }
                 }
             }
 
@@ -338,6 +344,10 @@ public final class NodeEnvironment implements Closeable {
                 close();
             }
         }
+    }
+
+    public Settings settings() {
+        return settings;
     }
 
     /**

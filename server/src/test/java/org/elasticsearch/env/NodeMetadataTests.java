@@ -43,7 +43,7 @@ public class NodeMetadataTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new NodeMetadata(randomAlphaOfLength(10), randomVersion(), randomIndexVersion()),
             nodeMetadata -> {
-                final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, tempDir);
+                final long generation = NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, randomBoolean(), tempDir);
                 final Tuple<NodeMetadata, Long> nodeMetadataLongTuple = NodeMetadata.FORMAT.loadLatestStateWithGeneration(
                     logger,
                     xContentRegistry(),
