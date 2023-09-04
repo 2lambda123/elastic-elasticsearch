@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -203,6 +204,11 @@ public class SingleValueQuery extends Query {
 
         Stats stats() {
             return stats;
+        }
+
+        @Override
+        public List<QueryBuilder> getChildren() {
+            return List.of(next);
         }
     }
 

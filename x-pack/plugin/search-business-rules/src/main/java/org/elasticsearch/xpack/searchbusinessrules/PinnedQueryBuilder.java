@@ -392,4 +392,9 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.V_7_4_0;
     }
+
+    @Override
+    public List<QueryBuilder> getChildren() {
+        return List.of(organicQuery);
+    }
 }

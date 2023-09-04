@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
+import org.elasticsearch.search.rank.RankQueryBuilder;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
@@ -365,6 +367,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
+        return parseTopLevelQuery(parser, queryNameConsumer, Set.of());
+    }
+
+    /**
+     * Parses and returns a query (excluding the query field that wraps it). To be called by API that support
+     * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
+     * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
+     * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * The method accepts a string consumer that will be provided with each query type used in the parsed content, to be used
+     * for instance to collect statistics about queries usage. This method also accepts a set of allowed classes that allow
+     * additional types of query parsers to be used for a specific purpose such as search.
+     */
+    public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer, Set<Class<?>> allowed)
+        throws IOException {
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
 
@@ -382,6 +398,18 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 }
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
                 if (categoryClass.equals(QueryBuilder.class)) {
+                    if (namedObject instanceof RankQueryBuilder) {
+                        if (allowed.contains(RankQueryBuilder.class) == false) {
+                            throw new IllegalArgumentException(
+                                "[" + ((QueryBuilder) namedObject).getName() + "] query is only available as part of a search query"
+                            );
+                        } else if (nestedDepth > 1) {
+                            throw new IllegalArgumentException(
+                                "[" + ((QueryBuilder) namedObject).getName() + "] query is not allowed as child query"
+                            );
+                        }
+                    }
+
                     queryNameConsumer.accept(name);
                     nestedDepth--;
                 }

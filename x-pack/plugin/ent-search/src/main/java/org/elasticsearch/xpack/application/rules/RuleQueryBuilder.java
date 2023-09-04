@@ -288,4 +288,8 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return NAME;
     }
 
+    @Override
+    public List<QueryBuilder> getChildren() {
+        return List.of(organicQuery);
+    }
 }

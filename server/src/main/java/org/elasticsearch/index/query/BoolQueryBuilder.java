@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -408,5 +409,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
+    }
+
+    @Override
+    public List<QueryBuilder> getChildren() {
+        List<QueryBuilder> queries = new ArrayList<>();
+        queries.addAll(mustClauses);
+        queries.addAll(mustNotClauses);
+        queries.addAll(filterClauses);
+        queries.addAll(shouldClauses);
+        return Collections.unmodifiableList(queries);
     }
 }

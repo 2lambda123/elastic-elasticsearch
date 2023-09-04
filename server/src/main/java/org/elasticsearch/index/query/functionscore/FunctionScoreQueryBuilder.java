@@ -652,4 +652,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public List<QueryBuilder> getChildren() {
+        return List.of(query);
+    }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankQueryBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -62,6 +63,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
@@ -1341,8 +1343,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                             "cannot specify field [" + currentFieldName + "] and field [" + SUB_SEARCHES_FIELD.getPreferredName() + "]"
                         );
                     }
-                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
-                    subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+                    QueryBuilder queryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage, Set.of(RankQueryBuilder.class));
+                    if (queryBuilder instanceof RankQueryBuilder rankQueryBuilder) {
+                        if (rankBuilder != null) {
+                            throw new IllegalArgumentException(
+                                "cannot specify field [" + currentFieldName + "] and query [" + rankBuilder.getWriteableName() + "]"
+                            );
+                        }
+                        rankBuilder = rankQueryBuilder.getRankBuilder();
+                        for (QueryBuilder childQueryBuilder : queryBuilder.getChildren()) {
+                            subSearchSourceBuilders.add(new SubSearchSourceBuilder(childQueryBuilder));
+                        }
+                    } else {
+                        subSearchSourceBuilders.add(new SubSearchSourceBuilder(queryBuilder));
+                    }
                     searchUsage.trackSectionUsage(QUERY_FIELD.getPreferredName());
                 } else if (POST_FILTER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     postQueryBuilder = parseTopLevelQuery(parser, searchUsage::trackQueryUsage);
@@ -1351,6 +1365,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     knnSearch = List.of(KnnSearchBuilder.fromXContent(parser));
                     searchUsage.trackSectionUsage(KNN_FIELD.getPreferredName());
                 } else if (RANK_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (rankBuilder != null) {
+                        throw new IllegalArgumentException(
+                            "cannot specify field [" + currentFieldName + "] and query [" + rankBuilder.getWriteableName() + "]"
+                        );
+                    }
                     if (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
                         throw new ParsingException(
                             parser.getTokenLocation(),

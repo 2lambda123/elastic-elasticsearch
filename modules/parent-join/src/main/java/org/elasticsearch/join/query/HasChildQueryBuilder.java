@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -354,6 +355,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             fieldData,
             context.getSearchSimilarity()
         );
+    }
+
+    @Override
+    public List<QueryBuilder> getChildren() {
+        return List.of(query);
     }
 
     /**

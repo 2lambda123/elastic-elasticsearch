@@ -168,4 +168,9 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.ZERO;
     }
+
+    @Override
+    public List<QueryBuilder> getChildren() {
+        return Collections.unmodifiableList(clauses);
+    }
 }

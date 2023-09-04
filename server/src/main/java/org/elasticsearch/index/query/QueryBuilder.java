@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.List;
 
 public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
@@ -65,5 +66,12 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     @Override
     default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
+    }
+
+    /**
+     * Returns a list of child query builders or an empty list if there aren't any.
+     */
+    default List<QueryBuilder> getChildren() {
+        return List.of();
     }
 }
