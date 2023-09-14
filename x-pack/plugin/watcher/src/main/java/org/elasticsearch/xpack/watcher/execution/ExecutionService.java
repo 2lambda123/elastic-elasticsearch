@@ -427,7 +427,7 @@ public class ExecutionService {
     }
 
     /*
-       The execution of an watch is split into two phases:
+       The execution of a watch is split into two phases:
        1. the trigger part which just makes sure to store the associated watch record in the history
        2. the actual processing of the watch
        The reason this split is that we don't want to lose the fact watch was triggered. This way, even if the
@@ -436,7 +436,11 @@ public class ExecutionService {
     */
     private void executeAsync(WatchExecutionContext ctx, final TriggeredWatch triggeredWatch) {
         try {
-            executor.execute(new WatchExecutionTask(ctx, () -> execute(ctx)));
+            executor.startTrace(ctx.id());
+            executor.execute(new WatchExecutionTask(ctx, () -> {
+                execute(ctx);
+                executor.stopTrace(ctx.id());
+            }));
         } catch (EsRejectedExecutionException e) {
             // Using the generic pool here since this can happen from a write thread and we don't want to block a write
             // thread to kick off these additional write/delete requests.
@@ -465,6 +469,7 @@ public class ExecutionService {
                         exc
                     );
                 }
+                executor.stopTrace(ctx.id());
             }));
         }
     }
