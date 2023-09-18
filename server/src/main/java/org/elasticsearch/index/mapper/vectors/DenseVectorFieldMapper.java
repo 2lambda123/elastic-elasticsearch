@@ -73,6 +73,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_11_0;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
+    public static final IndexVersion DOT_PRODUCT_DEFAULT_SIMILARITY = IndexVersion.V_8_500_002;
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; // maximum allowed number of dimensions
@@ -143,7 +144,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 "similarity",
                 false,
                 m -> toType(m).similarity,
-                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
+                (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? defaultSimilarity(indexVersionCreated) : null,
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
             this.indexed.addValidator(v -> {
@@ -194,6 +195,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 copyTo
             );
         }
+    }
+
+    private static VectorSimilarity defaultSimilarity(IndexVersion indexVersionCreated) {
+        return indexVersionCreated.onOrAfter(DOT_PRODUCT_DEFAULT_SIMILARITY) ? VectorSimilarity.DOT_PRODUCT : VectorSimilarity.COSINE;
     }
 
     private static FieldType getDenseVectorFieldType(
