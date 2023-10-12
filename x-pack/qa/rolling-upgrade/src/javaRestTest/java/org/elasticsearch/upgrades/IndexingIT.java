@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
@@ -25,6 +26,10 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractUpgradeTestCase {
+    public IndexingIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
+
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -76,7 +81,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
                 expectedCount = 5;
                 break;
             case MIXED:
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                if (isFirstRound()) {
                     expectedCount = 5;
                 } else {
                     expectedCount = 10;

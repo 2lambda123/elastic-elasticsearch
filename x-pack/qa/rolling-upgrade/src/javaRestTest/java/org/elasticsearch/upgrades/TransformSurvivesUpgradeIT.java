@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,7 +19,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -53,6 +54,10 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         .limit(5)
         .map(TimeValue::timeValueMinutes)
         .collect(Collectors.toList());
+
+    public TransformSurvivesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+    }
 
     protected static void waitForPendingTransformTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TRANSFORM_TASK_NAME) == false);
@@ -93,7 +98,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case MIXED -> {
                 client().performRequest(waitForYellow);
                 long lastCheckpoint = 1;
-                if (Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
+                if (isFirstRound() == false) {
                     lastCheckpoint = 2;
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);
