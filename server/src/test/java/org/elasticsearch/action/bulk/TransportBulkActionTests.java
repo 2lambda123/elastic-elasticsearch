@@ -40,6 +40,8 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -61,6 +63,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -82,7 +85,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 TransportBulkActionTests.this.threadPool,
                 transportService,
                 clusterService,
-                null,
+                mock(IngestService.class),
+                mock(FieldInferenceBulkRequestPreprocessor.class),
                 null,
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),

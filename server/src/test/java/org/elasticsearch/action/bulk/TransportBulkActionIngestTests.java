@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -93,6 +94,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     TransportService transportService;
     ClusterService clusterService;
     IngestService ingestService;
+    FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor;
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
@@ -133,6 +135,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 clusterService,
                 ingestService,
+                fieldInferenceBulkRequestPreprocessor,
                 null,
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
@@ -229,6 +232,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
+        fieldInferenceBulkRequestPreprocessor = mock(FieldInferenceBulkRequestPreprocessor.class);
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -279,7 +283,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -321,7 +326,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -367,7 +373,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -404,7 +411,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).processBulkRequest(any(), anyInt(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -444,7 +451,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).processBulkRequest(any(), anyInt(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -524,7 +531,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -572,7 +580,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.indexCreated); // no index yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -666,7 +675,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         );
 
         assertEquals("pipeline2", indexRequest.getPipeline());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -710,7 +720,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         );
 
         assertEquals("pipeline2", indexRequest.getPipeline());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -737,7 +748,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -774,7 +786,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(action.isExecuted); // haven't executed yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
-        verify(ingestService).executeBulkRequest(
+        verify(ingestService).processBulkRequest(
+            any(),
             eq(1),
             bulkDocsItr.capture(),
             any(),

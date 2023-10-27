@@ -147,7 +147,7 @@ public class TransportVersions {
     public static final TransportVersion UNCONTENDED_REGISTER_ANALYSIS_ADDED = def(8_522_00_0);
     public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_523_00_0);
     public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
-
+    public static final TransportVersion SEMANTIC_TEXT_FIELD_ADDED = def(8_525_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

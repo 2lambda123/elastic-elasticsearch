@@ -45,8 +45,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -94,7 +94,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * Holder class for several ingest related services.
  */
-public class IngestService implements ClusterStateApplier, ReportingService<IngestInfo> {
+public class IngestService extends AbstractBulkRequestPreprocessor implements ClusterStateApplier, ReportingService<IngestInfo> {
 
     public static final String NOOP_PIPELINE_NAME = "_none";
 
@@ -105,7 +105,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -184,9 +183,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
+        super(documentParsingObserverSupplier);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.documentParsingObserverSupplier = documentParsingObserverSupplier;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -540,6 +539,76 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @Override
+    public boolean needsProcessing(DocWriteRequest<?> docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
+        resolvePipelinesAndUpdateIndexRequest(docWriteRequest, indexRequest, metadata);
+        return hasPipeline(indexRequest);
+    }
+
+    @Override
+    public boolean hasBeenProcessed(IndexRequest indexRequest) {
+        return hasPipeline(indexRequest) && indexRequest.isPipelineResolved();
+    }
+
+    @Override
+    public boolean shouldExecuteOnIngestNode() {
+        return true;
+    }
+
+    @Override
+    protected void processIndexRequest(
+        IndexRequest indexRequest,
+        int slot,
+        RefCountingRunnable refs,
+        IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure
+    ) {
+        assert indexRequest.isPipelineResolved();
+
+        IngestService.PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+        if (pipelines.hasNext() == false) {
+            return;
+        }
+
+        // start the stopwatch and acquire a ref to indicate that we're working on this document
+        final long startTimeInNanos = System.nanoTime();
+        ingestMetric.preIngest();
+        final Releasable ref = refs.acquire();
+        // the document listener gives us three-way logic: a document can fail processing (1), or it can
+        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
+        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean kept) {
+                assert kept != null;
+                if (kept == false) {
+                    onDropped.accept(slot);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                ingestMetric.ingestFailed();
+                onFailure.accept(slot, e);
+            }
+        }, () -> {
+            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+            // that we're finished with this document
+            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            ingestMetric.postIngest(ingestTimeInNanos);
+            ref.close();
+        });
+        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
+
+        IngestDocument ingestDocument = newIngestDocument(indexRequest);
+
+        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
+        indexRequest.setPipelinesHaveRun();
+
+        assert indexRequest.index() != null;
+        documentParsingObserver.setIndexName(indexRequest.index());
+        documentParsingObserver.close();
+    }
+
     /**
      * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
      */
@@ -650,87 +719,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
-    }
-
-    public void executeBulkRequest(
-        final int numberOfActionRequests,
-        final Iterable<DocWriteRequest<?>> actionRequests,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
-    ) {
-        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
-
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
-
-            @Override
-            public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
-            }
-
-            @Override
-            protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
-                    int i = 0;
-                    for (DocWriteRequest<?> actionRequest : actionRequests) {
-                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                        if (indexRequest == null) {
-                            i++;
-                            continue;
-                        }
-
-                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
-                        if (pipelines.hasNext() == false) {
-                            i++;
-                            continue;
-                        }
-
-                        // start the stopwatch and acquire a ref to indicate that we're working on this document
-                        final long startTimeInNanos = System.nanoTime();
-                        totalMetrics.preIngest();
-                        final int slot = i;
-                        final Releasable ref = refs.acquire();
-                        // the document listener gives us three-way logic: a document can fail processing (1), or it can
-                        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Boolean kept) {
-                                assert kept != null;
-                                if (kept == false) {
-                                    onDropped.accept(slot);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                totalMetrics.ingestFailed();
-                                onFailure.accept(slot, e);
-                            }
-                        }, () -> {
-                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
-                            // that we're finished with this document
-                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                            totalMetrics.postIngest(ingestTimeInNanos);
-                            ref.close();
-                        });
-                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
-
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
-
-                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
-                        indexRequest.setPipelinesHaveRun();
-
-                        assert actionRequest.index() != null;
-                        documentParsingObserver.setIndexName(actionRequest.index());
-                        documentParsingObserver.close();
-
-                        i++;
-                    }
-                }
-            }
-        });
     }
 
     /**
@@ -1055,7 +1043,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
      */
-    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+    protected static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
         // we already check for self references elsewhere (and clear the bit), so this should always be false,
         // keeping the check and assert as a guard against extraordinarily surprising circumstances
