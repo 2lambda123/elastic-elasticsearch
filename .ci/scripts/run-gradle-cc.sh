@@ -47,4 +47,5 @@ fi
 set -e
 # pre warm the gradle daemon as we are still cc incompatible for cold daemons
 $GRADLEW :help --no-scan
+rm -rf "build/$BUILDKITE_BUILD_NUMBER.tar.bz2
 $GRADLEW -S --max-workers=$MAX_WORKERS $@ --configuration-cache
