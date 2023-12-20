@@ -36,6 +36,14 @@ steps:
       image: family/elasticsearch-ubuntu-2004
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
+  - label: cc-smoketests
+    command: $WORKSPACE/.ci/scripts/run-gradle-cc.sh precommit
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
   - group: java-fips-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-matrix"
