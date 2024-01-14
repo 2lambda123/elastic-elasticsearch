@@ -21,6 +21,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
@@ -46,7 +47,7 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Service extends S3Service {
 
         DummyS3Service(Environment environment) {
-            super(environment, Settings.EMPTY);
+            super(environment, Settings.EMPTY, SimpleS3StorageClassStrategyProvider.INSTANCE);
         }
 
         @Override

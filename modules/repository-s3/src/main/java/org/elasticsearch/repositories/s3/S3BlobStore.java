@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.s3.spi.S3StorageClassStrategy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ class S3BlobStore implements BlobStore {
 
     private final CannedAccessControlList cannedACL;
 
-    private final StorageClass storageClass;
+    private final S3StorageClassStrategy storageClassStrategy;
 
     private final RepositoryMetadata repositoryMetadata;
 
@@ -95,7 +96,7 @@ class S3BlobStore implements BlobStore {
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
-        String storageClass,
+        S3StorageClassStrategy storageClassStrategy,
         RepositoryMetadata repositoryMetadata,
         BigArrays bigArrays,
         ThreadPool threadPool,
@@ -107,7 +108,7 @@ class S3BlobStore implements BlobStore {
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
-        this.storageClass = initStorageClass(storageClass);
+        this.storageClassStrategy = storageClassStrategy;
         this.repositoryMetadata = repositoryMetadata;
         this.threadPool = threadPool;
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
@@ -382,8 +383,17 @@ class S3BlobStore implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() {
-        return storageClass;
+    public StorageClass getStorageClass(OperationPurpose purpose) {
+        // map the ES s3 storage class to s3 sdk storage class
+        return switch (storageClassStrategy.getStorageClass(purpose)) {
+            case STANDARD -> StorageClass.Standard;
+            case REDUCED_REDUNDANCY -> StorageClass.ReducedRedundancy;
+            case STANDARD_IA -> StorageClass.StandardInfrequentAccess;
+            case ONEZONE_IA -> StorageClass.OneZoneInfrequentAccess;
+            case INTELLIGENT_TIERING -> StorageClass.IntelligentTiering;
+            case GLACIER_IR -> StorageClass.GlacierInstantRetrieval;
+            case OUTPOSTS -> StorageClass.Outposts;
+        };
     }
 
     public static StorageClass initStorageClass(String storageClass) {

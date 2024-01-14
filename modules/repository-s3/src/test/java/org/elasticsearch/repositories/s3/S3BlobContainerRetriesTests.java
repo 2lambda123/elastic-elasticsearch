@@ -39,6 +39,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.s3.spi.SimpleS3StorageClassStrategyProvider;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -83,7 +84,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY);
+        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, SimpleS3StorageClassStrategyProvider.INSTANCE);
         super.setUp();
     }
 
@@ -158,7 +159,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
-                S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                service.getStorageClassStrategy(Settings.EMPTY),
                 repositoryMetadata,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new DeterministicTaskQueue().getThreadPool(),
