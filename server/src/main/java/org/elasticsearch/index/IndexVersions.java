@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ReleaseVersions;
+import org.elasticsearch.VersionLookup;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.UpdateForV9;
 
@@ -22,7 +23,6 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -155,6 +155,7 @@ public class IndexVersions {
      * In branches 8.7-8.11 see server/src/main/java/org/elasticsearch/index/IndexVersion.java for the equivalent definitions.
      */
 
+    @UpdateForV9
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
     static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
@@ -210,7 +211,7 @@ public class IndexVersions {
         return VERSION_IDS.values();
     }
 
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
+    static final VersionLookup VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(IndexVersions.class);
 
     // no instance
     private IndexVersions() {}
