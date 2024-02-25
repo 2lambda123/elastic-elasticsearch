@@ -22,6 +22,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -260,7 +261,7 @@ final class BootstrapChecks {
         }
 
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
     }
@@ -332,7 +333,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isMemoryLocked() {
-            return Natives.isMemoryLocked();
+            return NativeAccess.instance().isMemoryLocked();
         }
 
         @Override
@@ -365,7 +366,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxNumberOfThreads() {
-            return JNANatives.MAX_NUMBER_OF_THREADS;
+            return NativeAccess.instance().getMaxNumberOfThreads();
         }
 
         @Override
@@ -393,12 +394,12 @@ final class BootstrapChecks {
 
         // visible for testing
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return NativeAccess.instance().getRlimitInfinity();
         }
 
         // visible for testing
         long getMaxSizeVirtualMemory() {
-            return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+            return NativeAccess.instance().getMaxVirtualMemorySize();
         }
 
         @Override
@@ -429,11 +430,11 @@ final class BootstrapChecks {
         }
 
         long getRlimInfinity() {
-            return JNACLibrary.RLIM_INFINITY;
+            return NativeAccess.instance().getRlimitInfinity();
         }
 
         long getMaxFileSize() {
-            return JNANatives.MAX_FILE_SIZE;
+            return NativeAccess.instance().getMaxFileSize();
         }
 
         @Override
@@ -591,7 +592,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         @Override
@@ -615,7 +616,7 @@ final class BootstrapChecks {
 
         // visible for testing
         boolean isSystemCallFilterInstalled() {
-            return Natives.isSystemCallFilterInstalled();
+            return NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE;
         }
 
         // visible for testing

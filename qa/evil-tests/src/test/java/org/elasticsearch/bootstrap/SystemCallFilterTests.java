@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.test.ESTestCase;
 
 /** Simple tests system call filter is working. */
@@ -20,15 +21,18 @@ public class SystemCallFilterTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("requires system call filter installation", Natives.isSystemCallFilterInstalled());
+        assumeTrue(
+            "requires system call filter installation",
+            NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.NONE
+        );
         // otherwise security manager will block the execution, no fun
         assumeTrue("cannot test with security manager enabled", System.getSecurityManager() == null);
         // otherwise, since we don't have TSYNC support, rules are not applied to the test thread
         // (randomizedrunner class initialization happens in its own thread, after the test thread is created)
         // instead we just forcefully run it for the test thread here.
-        if (JNANatives.LOCAL_SYSTEM_CALL_FILTER_ALL == false) {
+        if (NativeAccess.instance().getExecSandboxState() != NativeAccess.ExecSandboxState.ALL_THREADS) {
             try {
-                SystemCallFilter.init(createTempDir());
+                NativeAccess.instance().tryInstallExecSandbox();
             } catch (Exception e) {
                 throw new RuntimeException("unable to forcefully apply system call filter to test thread", e);
             }

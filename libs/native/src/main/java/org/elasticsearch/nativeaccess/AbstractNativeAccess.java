@@ -17,11 +17,44 @@ abstract class AbstractNativeAccess implements NativeAccess {
 
     private final String name;
 
+    protected boolean memoryLocked = false;
+    protected long maxVirtualMemorySize = Long.MIN_VALUE;
+    protected long maxFileSize = Long.MIN_VALUE;
+    // the maximum number of threads that can be created for
+    // the user ID that owns the running Elasticsearch process
+    protected long maxNumberOfThreads = -1;
+    protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
+
     protected AbstractNativeAccess(String name) {
         this.name = name;
     }
 
     String getName() {
         return name;
+    }
+
+    @Override
+    public boolean isMemoryLocked() {
+        return memoryLocked;
+    }
+
+    @Override
+    public long getMaxVirtualMemorySize() {
+        return maxVirtualMemorySize;
+    }
+
+    @Override
+    public long getMaxFileSize() {
+        return maxFileSize;
+    }
+
+    @Override
+    public long getMaxNumberOfThreads() {
+        return maxNumberOfThreads;
+    }
+
+    @Override
+    public ExecSandboxState getExecSandboxState() {
+        return execSandboxState;
     }
 }

@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-grant codeBase "${codebase.systemd}" {
-  // for registering native methods
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-};
+package org.elasticsearch.nativeaccess.jna;
+
+// temp, move to core
+class Constants {
+    public static final boolean MAC_OS_X = System.getProperty("os.name").startsWith("Mac OS");
+}

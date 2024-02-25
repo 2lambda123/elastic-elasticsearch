@@ -13,8 +13,14 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 module org.elasticsearch.nativeaccess {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires java.management;
 
-    exports org.elasticsearch.nativeaccess to org.elasticsearch.server;
+    exports org.elasticsearch.nativeaccess
+        to
+            org.elasticsearch.nativeaccess.jna,
+            org.elasticsearch.server,
+            org.elasticsearch.blobcache,
+            org.elasticsearch.systemd;
     // allows jna to implement a library provider, and ProviderLocator to load it
     exports org.elasticsearch.nativeaccess.lib to org.elasticsearch.nativeaccess.jna, org.elasticsearch.base;
 
@@ -24,5 +30,4 @@ module org.elasticsearch.nativeaccess {
     exports org.elasticsearch.nativeaccess.exports to org.elasticsearch.base;
 
     provides ModuleQualifiedExportsService with NativeAccessModuleExportsService;
-
 }
