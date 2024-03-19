@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpEntity;
@@ -22,17 +21,13 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,9 +35,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
-import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -58,28 +50,17 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster();
     static ElasticsearchCluster localCluster = Clusters.localCluster(remoteCluster);
+    public static ClosingTestRule<RestClient> client = new ClosingTestRule<>() {
+        @Override
+        protected RestClient provideObject() throws IOException {
+            HttpHost[] localHosts = parseClusterHostsStatic(localCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+            return doBuildClient(Settings.builder().build(), localHosts);
+        }
+    };
+    public static CsvLoader loader = new CsvLoader(client);
 
     @ClassRule
-    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
-
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
-    public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec");
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
-
-        int len = specs.get(0).length;
-        List<Object[]> testcases = new ArrayList<>();
-        for (var spec : specs) {
-            for (Mode mode : List.of(SYNC)) { // No async, for now
-                Object[] obj = new Object[len + 1];
-                System.arraycopy(spec, 0, obj, 0, len);
-                obj[len] = mode;
-                testcases.add(obj);
-            }
-        }
-        return testcases;
-    }
+    public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster).around(client).around(loader);
 
     public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
@@ -99,9 +80,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected RestClient buildClient(Settings settings, HttpHost[] localHosts) throws IOException {
-        RestClient localClient = super.buildClient(settings, localHosts);
-        HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
-        RestClient remoteClient = super.buildClient(settings, remoteHosts);
+        return doBuildClient(settings, localHosts);
+    }
+
+    private static RestClient doBuildClient(Settings settings, HttpHost[] localHosts) throws IOException {
+        RestClient localClient = buildClientStatic(settings, localHosts);
+        HttpHost[] remoteHosts = parseClusterHostsStatic(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+        RestClient remoteClient = buildClientStatic(settings, remoteHosts);
         return twoClients(localClient, remoteClient);
     }
 
