@@ -67,6 +67,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareObjectArray(Builder::roleTemplates, (parser, ctx) -> TemplateRoleName.parse(parser), Fields.ROLE_TEMPLATES);
         PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
+        PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA_FLATTENED, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
         BiConsumer<Builder, String> ignored = (b, v) -> {};
         // skip the doc_type and type fields in case we're parsing directly from the index
@@ -286,6 +287,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
         if (indexFormat) {
             builder.field(NativeRoleMappingStoreField.DOC_TYPE_FIELD, NativeRoleMappingStoreField.DOC_TYPE_ROLE_MAPPING);
+            builder.field(NativeRoleMappingStoreField.METADATA_FLATTENED, metadata);
         }
         return builder.endObject();
     }
@@ -354,5 +356,6 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         ParseField ENABLED = new ParseField("enabled");
         ParseField RULES = new ParseField("rules");
         ParseField METADATA = new ParseField("metadata");
+        ParseField METADATA_FLATTENED = new ParseField("metadata_flattened");
     }
 }
