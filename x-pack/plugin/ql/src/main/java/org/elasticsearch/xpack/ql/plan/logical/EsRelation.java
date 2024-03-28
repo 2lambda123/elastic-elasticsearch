@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
@@ -101,7 +102,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, esSourceOptions, frozen);
+        return Objects.hash(index, attrs, esSourceOptions, frozen);
     }
 
     @Override
@@ -115,7 +116,10 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && Objects.equals(esSourceOptions, other.esSourceOptions) && frozen == other.frozen;
+        return Objects.equals(index, other.index)
+            && Objects.equals(attrs, other.attrs)
+            && Objects.equals(esSourceOptions, other.esSourceOptions)
+            && frozen == other.frozen;
     }
 
     @Override

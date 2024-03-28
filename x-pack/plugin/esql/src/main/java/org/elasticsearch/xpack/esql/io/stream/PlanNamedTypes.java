@@ -168,6 +168,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -310,6 +311,7 @@ public final class PlanNamedTypes {
             of(EsField.class, EsField.class, PlanNamedTypes::writeEsField, PlanNamedTypes::readEsField),
             of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
             of(EsField.class, InvalidMappedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
+            of(EsField.class, MultiTypeEsField.class, PlanNamedTypes::writeMultiTypeEsField, PlanNamedTypes::readMultiTypeEsField),
             of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
             of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
             of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
@@ -1143,6 +1145,22 @@ public final class PlanNamedTypes {
         out.writeString(field.getName());
         out.writeString(field.errorMessage());
         out.writeMap(field.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
+    }
+
+    static MultiTypeEsField readMultiTypeEsField(PlanStreamInput in) throws IOException {
+        return new MultiTypeEsField(
+            in.readString(),
+            in.dataTypeFromTypeName(in.readString()),
+            in.readBoolean(),
+            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readExpression))
+        );
+    }
+
+    static void writeMultiTypeEsField(PlanStreamOutput out, MultiTypeEsField field) throws IOException {
+        out.writeString(field.getName());
+        out.writeString(field.getDataType().typeName());
+        out.writeBoolean(field.isAggregatable());
+        out.writeMap(field.getIndexToConversionExpressions(), (o, v) -> out.writeNamed(Expression.class, v));
     }
 
     static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {

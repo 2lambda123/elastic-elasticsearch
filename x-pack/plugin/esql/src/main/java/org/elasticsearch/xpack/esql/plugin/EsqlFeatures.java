@@ -104,6 +104,10 @@ public class EsqlFeatures implements FeatureSpecification {
      * Cast string literals to a desired data type.
      */
     public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+    /**
+     * Support multiple field mappings if appropriate conversion function is used (union types)
+     */
+    public static final NodeFeature UNION_TYPES = new NodeFeature("esql.union_types");
 
     /**
      * Base64 encoding and decoding functions.
@@ -138,6 +142,7 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_CONTAINS_WITHIN,
             ST_DISJOINT,
             STRING_LITERAL_AUTO_CASTING,
+            UNION_TYPES,
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING
         );
