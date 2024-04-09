@@ -730,6 +730,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             continue;
                         }
 
+                        Pipeline firstPipeline = getFirstPipeline(indexRequest);
                         PipelineIterator pipelines = getAndResetPipelines(indexRequest);
                         if (pipelines.hasNext() == false) {
                             i++;
@@ -739,6 +740,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // start the stopwatch and acquire a ref to indicate that we're working on this document
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
+                        if (firstPipeline != null) {
+                            firstPipeline.getPipelineMetrics().preIngest(indexRequest.ramBytesUsed());
+                        }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
                         final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
@@ -755,6 +759,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                         if (result.shouldKeep == false) {
                                             onDropped.accept(slot);
                                         }
+                                        firstPipeline.getPipelineMetrics().postIngest(indexRequest.ramBytesUsed());
                                     } else {
                                         // We were given a failure result in the onResponse method, so we must store the failure
                                         // Recover the original document state, track a failed ingest, and pass it along
@@ -800,6 +805,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final String finalPipelineId = indexRequest.getFinalPipeline();
         indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
         return new PipelineIterator(pipelineId, finalPipelineId);
+    }
+
+    /**
+     * Returns the first pipeline to be run in the request; does not modify the request
+     */
+    private Pipeline getFirstPipeline(IndexRequest indexRequest) {
+        if (indexRequest.getPipeline().equals(NOOP_PIPELINE_NAME) == false) {
+            return getPipeline(indexRequest.getPipeline());
+        } else if (indexRequest.getFinalPipeline().equals(NOOP_PIPELINE_NAME) == false) {
+            return getPipeline(indexRequest.getFinalPipeline());
+        }
+        return null;
     }
 
     /**
@@ -1030,7 +1047,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         pipelines.forEach((id, holder) -> {
             Pipeline pipeline = holder.pipeline;
             CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
-            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
+            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics(), pipeline.getPipelineMetrics());
             List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
             collectProcessorMetrics(rootProcessor, processorMetrics);
             processorMetrics.forEach(t -> {
