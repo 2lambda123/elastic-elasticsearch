@@ -243,7 +243,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public Index getFailureStoreWriteIndex() {
-        return isFailureStoreEnabled() == false || failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
+        return isFailureStoreEnabled() == false ? null : unsafeGetFailureStoreWriteIndex();
+    }
+
+    /**
+     * Note: do not use this to determine which index to write on because we do not perform the check if failure store is enabled.
+     * @return the write failure index if there is already at least one failure, null otherwise
+     */
+    @Nullable
+    public Index unsafeGetFailureStoreWriteIndex() {
+        return failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
     }
 
     /**
@@ -816,10 +825,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
-     * The index age is calculated from the rollover or index creation date (or the origination date if present).
-     * If an indices predicate is provided the returned list of indices will be filtered
-     * according to the predicate definition. This is useful for things like "return only
+     * Returns the non-write backing indices and failure store indices that are older than the provided age,
+     * excluding the write index*. The index age is calculated from the rollover or index creation date (or
+     * the origination date if present). If an indices predicate is provided the returned list of indices will
+     * be filtered according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
@@ -832,6 +841,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         for (Index index : indices) {
             if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
+            }
+        }
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.isEmpty() == false) {
+            for (Index index : failureIndices) {
+                if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+                    olderIndices.add(index);
+                }
             }
         }
         return olderIndices;
@@ -858,11 +874,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
-     * If the index is not a backing index of this data stream, or we cannot supply its metadata
+     * If the index is not a backing index or a failure store index of this data stream, or we cannot supply its metadata
      * we return false.
      */
     public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
-        if (indices.contains(index) == false) {
+        if (indices.contains(index) == false && failureIndices.contains(index) == false) {
             return false;
         }
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
