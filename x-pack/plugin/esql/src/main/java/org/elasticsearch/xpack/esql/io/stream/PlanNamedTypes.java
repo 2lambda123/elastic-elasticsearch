@@ -312,6 +312,7 @@ public final class PlanNamedTypes {
             of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
             of(EsField.class, InvalidMappedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
             of(EsField.class, MultiTypeEsField.class, PlanNamedTypes::writeMultiTypeEsField, PlanNamedTypes::readMultiTypeEsField),
+            of(EsField.class, MultiTypeEsField.UnresolvedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
             of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
             of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
             of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
@@ -1023,16 +1024,16 @@ public final class PlanNamedTypes {
         );
     }
 
-    static void writeFieldAttribute(PlanStreamOutput out, FieldAttribute fileAttribute) throws IOException {
+    static void writeFieldAttribute(PlanStreamOutput out, FieldAttribute fieldAttribute) throws IOException {
         out.writeNoSource();
-        out.writeOptionalWriteable(fileAttribute.parent() == null ? null : o -> writeFieldAttribute(out, fileAttribute.parent()));
-        out.writeString(fileAttribute.name());
-        out.writeString(fileAttribute.dataType().typeName());
-        out.writeNamed(EsField.class, fileAttribute.field());
-        out.writeOptionalString(fileAttribute.qualifier());
-        out.writeEnum(fileAttribute.nullable());
-        out.writeLong(stringToLong(fileAttribute.id().toString()));
-        out.writeBoolean(fileAttribute.synthetic());
+        out.writeOptionalWriteable(fieldAttribute.parent() == null ? null : o -> writeFieldAttribute(out, fieldAttribute.parent()));
+        out.writeString(fieldAttribute.name());
+        out.writeString(fieldAttribute.dataType().typeName());
+        out.writeNamed(EsField.class, fieldAttribute.field());
+        out.writeOptionalString(fieldAttribute.qualifier());
+        out.writeEnum(fieldAttribute.nullable());
+        out.writeLong(stringToLong(fieldAttribute.id().toString()));
+        out.writeBoolean(fieldAttribute.synthetic());
     }
 
     static ReferenceAttribute readReferenceAttr(PlanStreamInput in) throws IOException {
