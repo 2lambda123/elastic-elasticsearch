@@ -312,7 +312,12 @@ public final class PlanNamedTypes {
             of(EsField.class, DateEsField.class, PlanNamedTypes::writeDateEsField, PlanNamedTypes::readDateEsField),
             of(EsField.class, InvalidMappedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
             of(EsField.class, MultiTypeEsField.class, PlanNamedTypes::writeMultiTypeEsField, PlanNamedTypes::readMultiTypeEsField),
-            of(EsField.class, MultiTypeEsField.UnresolvedField.class, PlanNamedTypes::writeInvalidMappedField, PlanNamedTypes::readInvalidMappedField),
+            of(
+                EsField.class,
+                MultiTypeEsField.UnresolvedField.class, // This extends InvalidMappedField with information needed only during Analysis
+                PlanNamedTypes::writeInvalidMappedField,
+                PlanNamedTypes::readInvalidMappedField
+            ),
             of(EsField.class, KeywordEsField.class, PlanNamedTypes::writeKeywordEsField, PlanNamedTypes::readKeywordEsField),
             of(EsField.class, TextEsField.class, PlanNamedTypes::writeTextEsField, PlanNamedTypes::readTextEsField),
             of(EsField.class, UnsupportedEsField.class, PlanNamedTypes::writeUnsupportedEsField, PlanNamedTypes::readUnsupportedEsField),
