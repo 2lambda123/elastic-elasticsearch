@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -96,8 +97,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
         IndexResolution resolution = new EsqlIndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("idx-*", caps);
         EsField f = resolution.get().mapping().get(field);
-        assertThat("Expecting a multi-type field", f, instanceOf(MultiTypeEsField.UnresolvedField.class));
-        MultiTypeEsField.UnresolvedField mtf = (MultiTypeEsField.UnresolvedField) f;
+        assertThat("Expecting a multi-type field", f, instanceOf(InvalidMappedField.class));
+        InvalidMappedField mtf = (InvalidMappedField) f;
         Map<String, Set<String>> typesToIndices = mtf.getTypesToIndices();
         Set<String> expected = typeConversions.keySet();
         assertThat(typesToIndices.keySet(), equalTo(expected));
@@ -106,7 +107,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
         assertThat(f.getDataType(), equalTo(DataTypes.UNSUPPORTED));
 
         // After type resolution we expect the resolved type to be the expected type
-        MultiTypeEsField resolved = mtf.resolve(typeConversions);
+        MultiTypeEsField resolved = MultiTypeEsField.resolveFrom(mtf, typeConversions);
         assertThat(resolved.getDataType(), equalTo(expectedResolvedType));
     }
 }

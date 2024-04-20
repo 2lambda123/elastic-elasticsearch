@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -218,7 +217,7 @@ public class EsqlIndexResolver {
                 typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        return new MultiTypeEsField.UnresolvedField(name, typesToIndices, aggregatable);
+        return new InvalidMappedField(name, typesToIndices, aggregatable);
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
