@@ -378,14 +378,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 debug.append("\nAdding field ").append(fields[f].info.name);
                 for (int s = 0; s < shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
-                        try (
-                            Block orig = builders[f][s].build();
-                            Block filtered = orig.filter(backwards);
-                            Block converted = fields[f].convert.convert(filtered)
-                        ) {
+                        try (Block orig = builders[f][s].build(); Block converted = fields[f].convert.convert(orig.filter(backwards))) {
                             debug.append("  from shard ").append(s).append("\n");
                             debug.append("    field builder block size: ").append(orig.getPositionCount()).append("\n");
-                            debug.append("    filtered builder block size: ").append(filtered.getPositionCount()).append("\n");
+                            debug.append("    filtered builder block size: ")
+                                .append(orig.filter(backwards).getPositionCount())
+                                .append("\n");
                             debug.append("    converted builder block size: ").append(converted.getPositionCount()).append("\n");
                             fieldTypeBuilders[f].copyFrom(converted, 0, converted.getPositionCount());
                         }

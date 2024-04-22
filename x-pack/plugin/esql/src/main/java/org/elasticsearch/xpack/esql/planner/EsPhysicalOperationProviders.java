@@ -410,6 +410,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public org.elasticsearch.compute.data.Block convert(org.elasticsearch.compute.data.Block block) {
             Page page = new Page(block);
             org.elasticsearch.compute.data.Block converted = convertEvaluator.eval(page);
+            assert converted.getPositionCount() == block.getPositionCount() : "Conversion must not change the number of rows";
             return converted;
         }
 
