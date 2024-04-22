@@ -167,7 +167,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             }
             success = true;
             if (page.getPositionCount() != blocks[0].getPositionCount()) {
-                throw new IllegalArgumentException("page.getPositionCount() != blocks[0].getPositionCount(): " + debug);
+                throw new IllegalArgumentException(
+                    "page.getPositionCount() != blocks[0].getPositionCount(): "
+                        + page.getPositionCount()
+                        + " != "
+                        + blocks[0].getPositionCount()
+                        + "\n"
+                        + debug
+                );
             }
             return page.appendBlocks(blocks);
         } catch (IOException e) {
@@ -368,16 +375,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 read(docs.getInt(p), shard);
             }
             for (int f = 0; f < target.length; f++) {
+                debug.append("\nAdding field ").append(fields[f].info.name);
                 for (int s = 0; s < shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
-                        try (Block orig = builders[f][s].build(); Block converted = fields[f].convert.convert(orig.filter(backwards))) {
-                            debug.append("Adding field ")
-                                .append(fields[f].info.name)
-                                .append(" from shard ")
-                                .append(s)
-                                .append(" to target\n");
-                            debug.append("  field builder block size: ").append(orig.getPositionCount()).append("\n");
-                            debug.append("  converted builder block size: ").append(converted.getPositionCount()).append("\n");
+                        try (
+                            Block orig = builders[f][s].build();
+                            Block filtered = orig.filter(backwards);
+                            Block converted = fields[f].convert.convert(filtered)
+                        ) {
+                            debug.append("  from shard ").append(s).append("\n");
+                            debug.append("    field builder block size: ").append(orig.getPositionCount()).append("\n");
+                            debug.append("    filtered builder block size: ").append(filtered.getPositionCount()).append("\n");
+                            debug.append("    converted builder block size: ").append(converted.getPositionCount()).append("\n");
                             fieldTypeBuilders[f].copyFrom(converted, 0, converted.getPositionCount());
                         }
                     }
