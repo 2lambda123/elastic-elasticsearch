@@ -190,6 +190,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -292,6 +293,8 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -768,6 +771,8 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             scriptService
         );
+        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(scriptService, clusterService);
+        final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -776,7 +781,7 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            nativeRoleMappingStore
+            userRoleMapper
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -785,7 +790,7 @@ public class Security extends Plugin
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
-                nativeRoleMappingStore,
+                userRoleMapper,
                 systemIndices.getMainIndexManager()
             )
         );
@@ -806,7 +811,8 @@ public class Security extends Plugin
             reservedRealm
         );
         components.add(nativeUsersStore);
-        components.add(nativeRoleMappingStore);
+        components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
+        components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
         components.add(realms);
         components.add(reservedRealm);
         this.realms.set(realms);
@@ -1102,8 +1108,7 @@ public class Security extends Plugin
             new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get(), profileService, apiKeyService)
         );
 
-        reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
-        systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
+        reservedRoleMappingAction.set(new ReservedRoleMappingAction());
 
         cacheInvalidatorRegistry.validate();
 
@@ -2183,9 +2188,10 @@ public class Security extends Plugin
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
-            return Collections.emptyList();
+            return List.of();
+        } else {
+            return List.of(reservedRoleMappingAction.get());
         }
-        return List.of(reservedRoleMappingAction.get());
     }
 
     // visible for testing
