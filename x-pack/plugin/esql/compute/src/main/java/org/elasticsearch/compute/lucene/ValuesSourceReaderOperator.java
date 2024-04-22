@@ -40,6 +40,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -378,10 +379,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 debug.append("\nAdding field ").append(fields[f].info.name);
                 for (int s = 0; s < shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
-                        try (Block orig = builders[f][s].build(); Block converted = fields[f].convert.convert(orig.filter(backwards))) {
+                        try (Block orig = builders[f][s].build(); Block converted = fields[f].convert.convert(orig)) {
                             debug.append("  from shard ").append(s).append("\n");
                             debug.append("    field builder block size: ").append(orig.getPositionCount()).append("\n");
                             debug.append("    filtering size: ").append(backwards.length).append("\n");
+                            if(backwards.length < 50>) {
+                                debug.append("    backwards: ").append(Arrays.toString(backwards)).append("\n");
+                            }
                             debug.append("    converted builder block size: ").append(converted.getPositionCount()).append("\n");
                             fieldTypeBuilders[f].copyFrom(converted, 0, converted.getPositionCount());
                         }
