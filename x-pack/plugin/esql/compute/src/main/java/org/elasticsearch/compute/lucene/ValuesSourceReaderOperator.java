@@ -387,7 +387,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                                 debug.append("    backwards: ").append(Arrays.toString(backwards)).append("\n");
                             }
                             debug.append("    converted builder block size: ").append(converted.getPositionCount()).append("\n");
-                            fieldTypeBuilders[f].copyFrom(converted, 0, converted.getPositionCount());
+                            fieldTypeBuilders[f].copyFrom(converted, 0, orig.getPositionCount());
                         }
                     }
                 }
