@@ -135,7 +135,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
         Block[] blocks = new Block[fields.length];
         boolean success = false;
-        StringBuilder debug = new StringBuilder();
         try {
             if (docVector.singleSegmentNonDecreasing()) {
                 IntVector docs = docVector.docs();
@@ -155,7 +154,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             } else if (docVector.singleSegment()) {
                 loadFromSingleLeafUnsorted(blocks, docVector);
             } else {
-                try (LoadFromMany many = new LoadFromMany(blocks, docVector, debug)) {
+                try (LoadFromMany many = new LoadFromMany(blocks, docVector)) {
                     many.run();
                 }
             }
@@ -166,16 +165,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
             }
             success = true;
-            if (page.getPositionCount() != blocks[0].getPositionCount()) {
-                throw new IllegalArgumentException(
-                    "page.getPositionCount() != blocks[0].getPositionCount(): "
-                        + page.getPositionCount()
-                        + " != "
-                        + blocks[0].getPositionCount()
-                        + "\n"
-                        + debug
-                );
-            }
             return page.appendBlocks(blocks);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -321,11 +310,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         private final Block.Builder[][] builders;
         private final Block.Builder[] fieldTypeBuilders;
         private final BlockLoader.RowStrideReader[] rowStride;
-        private final StringBuilder debug;
 
         BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
-        LoadFromMany(Block[] target, DocVector docVector, StringBuilder debug) {
+        LoadFromMany(Block[] target, DocVector docVector) {
             this.target = target;
             shards = docVector.shards();
             segments = docVector.segments();
@@ -335,7 +323,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             fieldTypeBuilders = new Block.Builder[target.length];
             builders = new Block.Builder[target.length][shardContexts.size()];
             rowStride = new BlockLoader.RowStrideReader[target.length];
-            this.debug = debug;
         }
 
         void run() throws IOException {
@@ -347,8 +334,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                  * So! We take the least common denominator which is the loader
                  * from the element expected element type.
                  */
-                debug.append("Field ").append(fields[f].info.name).append(" is of type ").append(fields[f].info.type).append("\n");
-                debug.append("  docs count ").append(docs.getPositionCount()).append("\n");
                 fieldTypeBuilders[f] = fields[f].info.type.newBlockBuilder(docs.getPositionCount(), blockFactory);
                 builders[f] = new Block.Builder[shardContexts.size()];
             }
@@ -375,7 +360,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 read(docs.getInt(p), shard);
             }
             for (int f = 0; f < target.length; f++) {
-                debug.append("\nAdding field ").append(fields[f].info.name);
                 for (int s = 0; s < shardContexts.size(); s++) {
                     if (builders[f][s] != null) {
                         try (Block orig = fields[f].convert.convert(builders[f][s].build())) {
@@ -386,7 +370,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 try (Block targetBlock = fieldTypeBuilders[f].build()) {
                     target[f] = targetBlock.filter(backwards);
                 }
-                debug.append("  target block size: ").append(target[f].getPositionCount()).append("\n");
             }
         }
 
