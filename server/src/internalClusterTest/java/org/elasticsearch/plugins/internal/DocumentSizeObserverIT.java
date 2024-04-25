@@ -9,6 +9,7 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -87,7 +88,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
                 @Override
                 public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                    return new TestDocumentSizeReporter();
+                    return new TestDocumentSizeReporter(indexName);
                 }
             };
         }
@@ -95,10 +96,21 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     public static class TestDocumentSizeReporter implements DocumentSizeReporter {
 
+        private final String indexName;
+
+        public TestDocumentSizeReporter(String indexName) {
+            this.indexName = indexName;
+        }
+
         @Override
-        public void onCompleted(String indexName, long normalizedBytesParsed) {
+        public void onIndexingCompleted(long normalizedBytesParsed) {
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
             assertThat(normalizedBytesParsed, equalTo(5L));
+        }
+
+        @Override
+        public void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed) {
+
         }
     }
 
@@ -121,5 +133,6 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         public long normalisedBytesParsed() {
             return counter;
         }
+
     }
 }

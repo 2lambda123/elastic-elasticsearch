@@ -369,7 +369,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                documentSizeObserver
+                documentSizeObserver,
+                documentParsingProvider.getDocumentParsingReporter(request.index())
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -489,7 +490,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
             DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index());
             DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
-            documentSizeReporter.onCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
+            documentSizeReporter.onIndexingCompleted(documentSizeObserver.normalisedBytesParsed());
         }
         if (isUpdate
             && isFailed
