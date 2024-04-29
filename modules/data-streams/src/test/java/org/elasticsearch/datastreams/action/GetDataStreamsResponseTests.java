@@ -82,7 +82,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
                 .setFailureStoreEnabled(true)
-                .setFailureIndices(failureStores)
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
             String ilmPolicyName = "rollover-30days";
@@ -159,8 +159,9 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 );
 
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                        DataStream.FAILURE_INDICES_FIELD.getPreferredName()
+                    var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(
+                        DataStream.INDICES_FIELD.getPreferredName()
                     );
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                     assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
@@ -185,7 +186,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))
                 .setFailureStoreEnabled(true)
-                .setFailureIndices(failureStores)
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
 
             String ilmPolicyName = "rollover-30days";
@@ -251,8 +252,9 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 );
 
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
-                        DataStream.FAILURE_INDICES_FIELD.getPreferredName()
+                    var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(
+                        DataStream.INDICES_FIELD.getPreferredName()
                     );
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
                     assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
