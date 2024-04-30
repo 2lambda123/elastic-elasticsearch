@@ -50,7 +50,8 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath "com.github.breskeby:gradle-ospackage-plugin:2da19425133"
+//    classpath "com.github.breskeby:gradle-ospackage-plugin:2200b9e10a"
+    classpath "com.github.breskeby:gradle-ospackage-plugin:2674a36"
   }
 }
 
