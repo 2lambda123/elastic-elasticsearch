@@ -39,7 +39,8 @@ public class DataStreamFeatures implements FeatureSpecification {
             LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER,                    // Added in 8.13
             DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE,
             DataStreamGlobalRetention.GLOBAL_RETENTION,                      // Added in 8.14
-            DATA_STREAM_INDICES_EXTRACTION                                   // Added in 8.15
+            DATA_STREAM_INDICES_EXTRACTION,                                  // Added in 8.15
+            LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER                   // Added in 8.15
         );
     }
 }
