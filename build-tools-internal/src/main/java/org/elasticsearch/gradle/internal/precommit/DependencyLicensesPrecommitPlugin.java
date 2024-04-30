@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -31,10 +31,15 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setDependencies(
-                runtimeClasspath.fileCollection(
-                    dependency -> dependency instanceof ProjectDependency == false
-                        && dependency.getGroup().startsWith("org.elasticsearch") == false
-                ).minus(compileOnly)
+                runtimeClasspath.getIncoming()
+                    .artifactView(
+                        viewConfiguration -> viewConfiguration.componentFilter(
+                            identifier -> (identifier instanceof ModuleComponentIdentifier)
+                                && ((ModuleComponentIdentifier) identifier).getGroup().startsWith("org.elasticsearch") == false
+                        )
+                    )
+                    .getFiles()
+                    .minus(compileOnly)
             );
         });
         return dependencyLicenses;
