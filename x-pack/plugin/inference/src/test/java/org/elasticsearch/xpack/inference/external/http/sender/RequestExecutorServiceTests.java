@@ -118,7 +118,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.execute(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "id", null, threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
             new DocumentsOnlyInput(List.of()),
             null,
             listener
@@ -195,7 +195,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
         service.execute(
-            OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "id", null, threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "id", null, threadPool),
             new DocumentsOnlyInput(List.of()),
             null,
             listener
