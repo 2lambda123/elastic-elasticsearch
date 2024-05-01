@@ -321,7 +321,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 if (serverless) {
                     availableFeatures.removeAll(
-                        List.of(
+                        Set.of(
                             ProductFeature.ILM,
                             ProductFeature.SLM,
                             ProductFeature.ROLLUPS,
