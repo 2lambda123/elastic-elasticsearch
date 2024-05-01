@@ -1,0 +1,488 @@
+---
+"line_33":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "logs-nginx.access-prod",
+                  "alias": "logs"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_52":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "logs-*",
+                  "alias": "logs"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "remove": {
+                  "index": "logs-nginx.access-prod",
+                  "alias": "logs"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_102":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-my_app-default"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "remove": {
+                  "index": "logs-nginx.access-prod",
+                  "alias": "logs"
+                }
+              },
+              {
+                "add": {
+                  "index": "logs-my_app-default",
+                  "alias": "logs"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_135":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "remove": {
+                  "index": "index1",
+                  "alias": "logs-non-existing"
+                }
+              },
+              {
+                "add": {
+                  "index": "index2",
+                  "alias": "logs-non-existing"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true,
+          "errors": true,
+          "action_results": [
+            {
+              "action": {
+                "type": "remove",
+                "indices": [ "index1" ],
+                "aliases": [ "logs-non-existing" ],
+              },
+              "status": 404,
+              "error": {
+                "type": "aliases_not_found_exception",
+                "reason": "aliases [logs-non-existing] missing",
+                "resource.type": "aliases",
+                "resource.id": "logs-non-existing"
+              }
+            },
+            {
+              "action": {
+                "type": "add",
+                "indices": [ "index2" ],
+                "aliases": [ "logs-non-existing" ],
+              },
+              "status": 200
+            }
+          ]
+        }
+---
+"line_204":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/my-aliases"
+        body: |
+          {
+            "template": {
+              "aliases": {
+                "my-alias": {}
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-index-template"
+        body: |
+          {
+            "index_patterns": [
+              "my-index-*"
+            ],
+            "composed_of": [
+              "my-aliases"
+            ],
+            "template": {
+              "aliases": {
+                "yet-another-alias": {}
+              }
+            }
+          }
+  - is_false: _shards.failures
+# Named teardown data_stream_cleanup
+
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+
+---
+"line_240":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "%3Cmy-index-%7Bnow%2Fd%7D-000001%3E"
+        body: |
+          {
+            "aliases": {
+              "my-alias": {}
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_258":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs-nginx.access-prod/_alias/logs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_alias"
+  - is_false: _shards.failures
+---
+"line_266":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs-nginx.access-prod/_alias/logs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "logs-nginx.access-prod/_alias"
+  - is_false: _shards.failures
+---
+"line_275":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs-nginx.access-prod/_alias/logs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_alias/logs"
+  - is_false: _shards.failures
+---
+"line_289":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-nginx.access-prod"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-my_app-default"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "logs-nginx.access-prod",
+                  "alias": "logs"
+                }
+              },
+              {
+                "add": {
+                  "index": "logs-my_app-default",
+                  "alias": "logs",
+                  "is_write_index": true
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_327":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-2099.05.06-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "my-index-2099.05.06-000001",
+                  "alias": "my-alias",
+                  "filter": {
+                    "bool": {
+                      "filter": [
+                        {
+                          "range": {
+                            "@timestamp": {
+                              "gte": "now-1d/d",
+                              "lt": "now/d"
+                            }
+                          }
+                        },
+                        {
+                          "term": {
+                            "user.id": "kimchy"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_371":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-2099.05.06-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "my-index-2099.05.06-000001",
+                  "alias": "my-alias",
+                  "routing": "1"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_392":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-2099.05.06-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "my-index-2099.05.06-000001",
+                  "alias": "my-alias",
+                  "search_routing": "1",
+                  "index_routing": "2"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures

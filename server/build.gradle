@@ -254,13 +254,32 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /log4j-.*/, to: 'log4j'
-    dependencies = project.configurations.runtimeClasspath.fileCollection {
-        it.group.startsWith('org.elasticsearch') == false ||
-                // keep the following org.elasticsearch jars in
-                (it.name == 'jna' ||
-                        it.name == 'securesm')
+
+
+//  def transitive = project.configurations.runtimeClasspath.copy()
+  // TODO this is just a workaround and ugly hack we need to improve before merging
+  def localDeps = []
+  def incoming = project.configurations.runtimeClasspath.incoming
+  incoming.afterResolve(
+    new Action<ResolvableDependencies>() {
+      @Override
+      void execute(ResolvableDependencies resolvableDependencies) {
+        localDeps.addAll(resolvableDependencies.getResolutionResult().getRoot().getDependencies()
+          .findAll { DependencyResult r -> r.getRequested() instanceof ModuleComponentSelector}
+          .collect { DependencyResult r -> ((ModuleComponentSelector)r.getRequested()).moduleIdentifier })
+      }
     }
+  )
+  dependencies = incoming.artifactView {
+     it.componentFilter {
+        it instanceof ModuleComponentIdentifier
+          && (it.moduleIdentifier in localDeps)
+          && (it.group.startsWith('org.elasticsearch') == false
+          ||  (it.name == 'jna' || it.name == 'securesm'))
+      }
+    }.files
 }
+
 
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice

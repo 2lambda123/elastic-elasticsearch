@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -54,12 +55,15 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
             Configuration compileOnly = project.getConfigurations()
                 .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
             t.setClasspath(runtimeConfiguration.plus(compileOnly));
-            t.getJarsToScan().from(runtimeConfiguration.fileCollection(dep -> {
+            t.getJarsToScan().from(runtimeConfiguration.getIncoming().artifactView(viewConfiguration -> {
                 // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
                 // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
                 // err on the side of scanning these to make sure we don't miss anything
-                return dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
-            }));
+                viewConfiguration.componentFilter(
+                    identifier -> identifier instanceof ModuleComponentIdentifier
+                        && ((ModuleComponentIdentifier) identifier).getGroup().startsWith("org.elasticsearch") == false
+                );
+            }).getFiles());
             t.dependsOn(resourcesTask);
             if (BuildParams.getIsRuntimeJavaHomeSet()) {
                 t.getJavaHome().set(project.provider(BuildParams::getRuntimeJavaHome).map(File::getPath));
