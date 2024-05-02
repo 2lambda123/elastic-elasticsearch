@@ -67,7 +67,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -964,7 +964,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*", "remote").indices("abc-*", "xyz-*").privileges("read").build(),
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-1-*").privileges("read").build(), },
-            null
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         ConfigurableClusterPrivilege ccp2 = new MockConfigurableClusterPrivilege() {
@@ -992,7 +993,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("*").indices("remote-idx-2-*").privileges("read").build(),
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote-*").indices("remote-idx-3-*").privileges("read").build() },
-            null
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -1093,7 +1095,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleFromDescriptorsWithSingleRestriction() {
-        Role role = buildRole(RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true));
+        Role role = buildRole(
+            RoleDescriptorTestHelper.builder()
+                .allowReservedMetadata(randomBoolean())
+                .allowRemoteIndices(randomBoolean())
+                .allowRestriction(true)
+                .allowDescription(randomBoolean())
+                .build()
+        );
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
     }
 
@@ -1101,8 +1110,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true)
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .build()
             )
         );
         assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not allowed"));
@@ -1110,9 +1129,24 @@ public class CompositeRolesStoreTests extends ESTestCase {
         e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false)
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(true)
+                    .allowDescription(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(false)
+                    .allowDescription(randomBoolean())
+                    .build(),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(false)
+                    .allowDescription(randomBoolean())
+                    .build()
             )
         );
         assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not allowed"));
@@ -2094,6 +2128,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                             null,
                             null,
                             null,
+                            null,
                             null
                         )
                     )
@@ -3035,7 +3070,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final RoleDescriptor.RemoteIndicesPrivileges[] rips,
         final IndicesPrivileges[] ips
     ) {
-        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null);
+        return new RoleDescriptor(name, null, ips, null, null, null, null, null, rips, null, null);
     }
 
     private Role buildRole(final RoleDescriptor... roleDescriptors) {
