@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -79,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,9 +125,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveFunctions(),
             new ResolveRefs(),
+            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCasting()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnresolveUnionTypes());
         rules = List.of(resolution, finish);
     }
 
@@ -716,14 +721,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named) {
-        if (named instanceof FieldAttribute fa) {
-            // incompatible mappings
-            var field = fa.field();
-            if (field instanceof InvalidMappedField imf) {
-                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage());
-            }
-        }
-
         return named.withLocation(u.source());
     }
 
@@ -886,6 +883,121 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     message
                 );
             }
+        }
+    }
+
+    /**
+     * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
+     * During ResolveRefs we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
+     * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
+     * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
+     * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
+     * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
+     * (See UnresolveUnionTypes below).
+     */
+    private static class ResolveUnionTypes extends BaseAnalyzerRule {
+
+        record TypeResolutionKey(String fieldName, DataType fieldType) {}
+
+        @Override
+        protected LogicalPlan doRule(LogicalPlan plan) {
+            List<FieldAttribute> unionFieldAttributes = new ArrayList<>();
+            // See if the eval function has an unresolved MultiTypeEsField field
+            // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
+            plan = plan.transformExpressionsOnly(
+                AbstractConvertFunction.class,
+                convert -> resolveConvertFunction(convert, unionFieldAttributes)
+            );
+            // If no union fields were generated, return the plan as is
+            if (unionFieldAttributes.isEmpty()) {
+                return plan;
+            }
+            // Otherwise, add generated fields to EsRelation, so these new attributes will appear in the OutputExec of the Fragment
+            // and thereby get used in FieldExtractExec
+            plan = plan.transformDown(EsRelation.class, esr -> {
+                List<Attribute> output = esr.output();
+                List<Attribute> missing = new ArrayList<>();
+                for (FieldAttribute fa : unionFieldAttributes) {
+                    if (output.stream().noneMatch(a -> a.id().equals(fa.id()))) {
+                        missing.add(fa);
+                    }
+                }
+                if (missing.isEmpty() == false) {
+                    output.addAll(missing);
+                    return new EsRelation(esr.source(), esr.index(), output, esr.esSourceOptions(), esr.frozen());
+                }
+                return esr;
+            });
+            return plan;
+        }
+
+        private Expression resolveConvertFunction(AbstractConvertFunction convert, List<FieldAttribute> unionFieldAttributes) {
+            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField mtf) {
+                HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                mtf.getTypesToIndices().keySet().forEach(typeName -> {
+                    DataType type = DataTypes.fromTypeName(typeName);
+                    TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
+                    var concreteConvert = typeSpecificConvert(convert, fa.source(), type, mtf);
+                    typeResolutions.put(key, concreteConvert);
+                });
+                // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
+                var resolvedField = resolvedMultiTypeEsField(mtf, typeResolutions);
+                var unionFieldAttribute = new FieldAttribute(fa.source(), fa.name(), resolvedField);  // Generates new ID for the field
+                unionFieldAttributes.add(unionFieldAttribute);
+                return unionFieldAttribute;
+            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes)));
+            }
+            return convert;
+        }
+
+        private MultiTypeEsField resolvedMultiTypeEsField(InvalidMappedField mtf, HashMap<TypeResolutionKey, Expression> typeResolutions) {
+            Map<String, Expression> typesToConversionExpressions = new HashMap<>();
+            mtf.getTypesToIndices().forEach((typeName, indexNames) -> {
+                DataType type = DataTypes.fromTypeName(typeName);
+                TypeResolutionKey key = new TypeResolutionKey(mtf.getName(), type);
+                if (typeResolutions.containsKey(key)) {
+                    typesToConversionExpressions.put(typeName, typeResolutions.get(key));
+                }
+            });
+            return MultiTypeEsField.resolveFrom(mtf, typesToConversionExpressions);
+        }
+
+        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
+            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
+            NameId id = ((FieldAttribute) convert.field()).id();
+            FieldAttribute resolvedAttr = new FieldAttribute(source, null, field.getName(), field, null, Nullability.TRUE, id, false);
+            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+        }
+    }
+
+    /**
+     * If there was no AbstractConvertFunction that resolved multi-type fields in the ResolveUnionTypes rules,
+     * then there could still be some FieldAttributes that contain unresolved MultiTypeEsFields.
+     * These need to be converted back to actual UnresolvedAttribute in order for validation to generate appropriate failures.
+     */
+    private static class UnresolveUnionTypes extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof EsRelation esRelation) {
+                // Leave esRelation as InvalidMappedField so that UNSUPPORTED fields can still pass through
+                return esRelation;
+            }
+            return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
+        }
+
+        private static Attribute checkUnresolved(FieldAttribute fa) {
+            var field = fa.field();
+            if (field instanceof InvalidMappedField imf) {
+                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+                return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
+            }
+            return fa;
         }
     }
 }

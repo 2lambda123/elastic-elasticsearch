@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -20,18 +21,67 @@ import java.util.TreeMap;
 public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
+    private final Map<String, Set<String>> typesToIndices;
+    private final boolean aggregatableIfMultiValuedResolved;    // Only capture aggregatable value for MultiTypeEsField
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
-        super(name, DataTypes.UNSUPPORTED, properties, false);
-        this.errorMessage = errorMessage;
+        this(name, errorMessage, properties, Map.of(), false);
     }
 
     public InvalidMappedField(String name, String errorMessage) {
-        this(name, errorMessage, new TreeMap<String, EsField>());
+        this(name, errorMessage, new TreeMap<>());
     }
 
     public InvalidMappedField(String name) {
-        this(name, StringUtils.EMPTY, new TreeMap<String, EsField>());
+        this(name, StringUtils.EMPTY, new TreeMap<>());
+    }
+
+    /**
+     * Constructor supporting union types, used in ES|QL.
+     */
+    public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, boolean aggregatableIfMultiValuedResolved) {
+        this(name, makeErrorMessage(typesToIndices), new TreeMap<>(), typesToIndices, aggregatableIfMultiValuedResolved);
+    }
+
+    private InvalidMappedField(
+        String name,
+        String errorMessage,
+        Map<String, EsField> properties,
+        Map<String, Set<String>> typesToIndices,
+        boolean aggregatableIfMultiValuedResolved
+    ) {
+        super(name, DataTypes.UNSUPPORTED, properties, false);
+        this.errorMessage = errorMessage;
+        this.typesToIndices = typesToIndices;
+        this.aggregatableIfMultiValuedResolved = aggregatableIfMultiValuedResolved;
+    }
+
+    private static String makeErrorMessage(Map<String, Set<String>> typesToIndices) {
+        StringBuilder errorMessage = new StringBuilder();
+        errorMessage.append("mapped as [");
+        errorMessage.append(typesToIndices.size());
+        errorMessage.append("] incompatible types: ");
+        boolean first = true;
+        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
+            if (first) {
+                first = false;
+            } else {
+                errorMessage.append(", ");
+            }
+            errorMessage.append("[");
+            errorMessage.append(e.getKey());
+            errorMessage.append("] in ");
+            errorMessage.append(e.getValue());
+        }
+        return errorMessage.toString();
+    }
+
+    public boolean isAggregatableIfMultiValuedResolved() {
+        return aggregatableIfMultiValuedResolved;
+    }
+
+    public Map<String, Set<String>> getTypesToIndices() {
+        return typesToIndices;
     }
 
     public String errorMessage() {
