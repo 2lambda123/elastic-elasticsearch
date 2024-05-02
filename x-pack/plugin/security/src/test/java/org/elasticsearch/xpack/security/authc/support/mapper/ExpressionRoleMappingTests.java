@@ -396,7 +396,10 @@ public class ExpressionRoleMappingTests extends ESTestCase {
               "metadata": {
                 "answer": 42
               },
-              "doc_type": "role-mapping"
+              "doc_type": "role-mapping",
+              "metadata_flattened": {
+                "answer": 42
+              }
             }""")));
 
         final ExpressionRoleMapping parsed = parse(xcontent, getTestName(), true);
