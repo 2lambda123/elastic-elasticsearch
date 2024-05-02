@@ -15,9 +15,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -59,6 +61,8 @@ public class PathTrie<T> {
     private static final String SEPARATOR = "/";
     private static final String WILDCARD = "*";
 
+    private static final Set<String> PARAM_WILDCARDS = Set.of("_all", "_doc", "_id");
+
     public PathTrie(UnaryOperator<String> decoder) {
         this.decoder = decoder;
         root = new TrieNode(SEPARATOR, null);
@@ -67,6 +71,8 @@ public class PathTrie<T> {
     private class TrieNode {
         private T value;
         private String namedWildcard;
+        private Set<String> additionalStrings;
+
         private Map<String, TrieNode> children;
 
         private TrieNode(String key, T value) {
@@ -74,20 +80,42 @@ public class PathTrie<T> {
             this.children = emptyMap();
             if (isNamedWildcard(key)) {
                 updateNamedWildcard(key);
-            } else {
-                namedWildcard = null;
             }
         }
 
+        private static final Pattern SPLIT = Pattern.compile("[{|}]");
+
         private void updateNamedWildcard(String key) {
-            String newNamedWildcard = key.substring(1, key.length() - 1);
+            assert key.charAt(0) == '{' && key.charAt(key.length() - 1) == '}' : key + " is not a wildcard";
+
+            String[] wildcardSpec = SPLIT.split(key);
+            // first one is always the empty string because split() is a bit weird
+            assert wildcardSpec[0].isEmpty();
+            String newNamedWildcard = wildcardSpec[1];
+            Set<String> newAdditionalStrings = Set.copyOf(Arrays.asList(wildcardSpec).subList(2, wildcardSpec.length));
+
             if (newNamedWildcard.equals(namedWildcard) == false) {
                 if (namedWildcard != null) {
                     throw new IllegalArgumentException(
-                        "Trying to use conflicting wildcard names for same path: " + namedWildcard + " and " + newNamedWildcard
+                        "Trying to use conflicting wildcard names for same path: [" + namedWildcard + "] and [" + newNamedWildcard + "]"
                     );
                 }
                 namedWildcard = newNamedWildcard;
+            }
+
+            if (newAdditionalStrings.isEmpty() == false && newAdditionalStrings.equals(additionalStrings) == false) {
+                if (additionalStrings != null) {
+                    throw new IllegalArgumentException(
+                        "Trying to use conflicting additional strings for same wildcard ["
+                            + namedWildcard
+                            + "]: ["
+                            + additionalStrings
+                            + "] and ["
+                            + newAdditionalStrings
+                            + "]"
+                    );
+                }
+                additionalStrings = newAdditionalStrings;
             }
         }
 
@@ -171,12 +199,15 @@ public class PathTrie<T> {
             return key.charAt(0) == '{' && key.charAt(key.length() - 1) == '}';
         }
 
-        private String namedWildcard() {
-            return namedWildcard;
-        }
-
-        private boolean isNamedWildcard() {
-            return namedWildcard != null;
+        private TrieNode getWildcardNodeForToken(String token) {
+            TrieNode node = children.get(WILDCARD);
+            if (node != null
+                && token.startsWith("_")
+                && PARAM_WILDCARDS.contains(token) == false
+                && (node.additionalStrings == null || node.additionalStrings.contains(token) == false)) {
+                return null;
+            }
+            return node;
         }
 
         private T retrieve(String[] path, int index, Map<String, String> params, TrieMatchingMode trieMatchingMode) {
@@ -188,7 +219,7 @@ public class PathTrie<T> {
 
             if (node == null) {
                 if (trieMatchingMode == TrieMatchingMode.WILDCARD_NODES_ALLOWED) {
-                    node = children.get(WILDCARD);
+                    node = getWildcardNodeForToken(token);
                     if (node == null) {
                         return null;
                     }
@@ -197,7 +228,7 @@ public class PathTrie<T> {
                     /*
                      * Allow root node wildcard matches.
                      */
-                    node = children.get(WILDCARD);
+                    node = getWildcardNodeForToken(token);
                     if (node == null) {
                         return null;
                     }
@@ -206,7 +237,7 @@ public class PathTrie<T> {
                     /*
                      * Allow leaf node wildcard matches.
                      */
-                    node = children.get(WILDCARD);
+                    node = getWildcardNodeForToken(token);
                     if (node == null) {
                         return null;
                     }
@@ -219,7 +250,7 @@ public class PathTrie<T> {
                 if (index + 1 == path.length
                     && node.value == null
                     && EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false
-                    && (wildcardNode = children.get(WILDCARD)) != null) {
+                    && (wildcardNode = getWildcardNodeForToken(token)) != null) {
                     /*
                      * If we are at the end of the path, the current node does not have a value but
                      * there is a child wildcard node, use the child wildcard node.
@@ -229,7 +260,7 @@ public class PathTrie<T> {
                 } else if (index == 1
                     && node.value == null
                     && trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
-                    && (wildcardNode = children.get(WILDCARD)) != null) {
+                    && (wildcardNode = getWildcardNodeForToken(token)) != null) {
                         /*
                          * If we are at the root, and root wildcards are allowed, use the child wildcard
                          * node.
@@ -249,7 +280,7 @@ public class PathTrie<T> {
 
             T nodeValue = node.retrieve(path, index + 1, params, trieMatchingMode);
             if (nodeValue == null && usedWildcard == false && trieMatchingMode != TrieMatchingMode.EXPLICIT_NODES_ONLY) {
-                node = children.get(WILDCARD);
+                node = getWildcardNodeForToken(token);
                 if (node != null) {
                     recordWildcardParam(params, node, token);
                     nodeValue = node.retrieve(path, index + 1, params, trieMatchingMode);
@@ -260,8 +291,8 @@ public class PathTrie<T> {
         }
 
         private void recordWildcardParam(Map<String, String> params, TrieNode node, String value) {
-            if (params != null && node.isNamedWildcard()) {
-                params.put(node.namedWildcard(), decoder.apply(value));
+            if (params != null && node.namedWildcard != null) {
+                params.put(node.namedWildcard, decoder.apply(value));
             }
         }
 
