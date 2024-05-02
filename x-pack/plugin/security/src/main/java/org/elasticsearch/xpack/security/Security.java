@@ -395,7 +395,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
-import org.elasticsearch.xpack.security.support.MigrateSecurityIndexFieldServiceExecutor;
+import org.elasticsearch.xpack.security.support.SecurityIndexFieldMigrationExecutor;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
@@ -604,7 +604,7 @@ public class Security extends Plugin
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
-    private final SetOnce<MigrateSecurityIndexFieldServiceExecutor> migrateSecurityIndexFieldServiceExecutor = new SetOnce<>();
+    private final SetOnce<SecurityIndexFieldMigrationExecutor> migrateSecurityIndexFieldServiceExecutor = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -733,7 +733,7 @@ public class Security extends Plugin
         systemIndices.init(client, clusterService);
 
         this.migrateSecurityIndexFieldServiceExecutor.set(
-            new MigrateSecurityIndexFieldServiceExecutor(
+            new SecurityIndexFieldMigrationExecutor(
                 clusterService,
                 MigrateSecurityIndexFieldTaskParams.TASK_NAME,
                 threadPool.generic(), // TODO Need to investigate what works best for this
@@ -744,7 +744,8 @@ public class Security extends Plugin
 
         // Add a state listener to see if a migration of metadata is needed after a security index state change
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            if (featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
+            if (newState.indexExists()
+                && featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
                 if (this.migrateSecurityIndexFieldServiceExecutor.get().shouldStartMetadataMigration(clusterService.state())) {
                     persistentTasksService.sendStartRequest(
                         // The constant id guarantees that this job only runs once
@@ -754,7 +755,7 @@ public class Security extends Plugin
                         new MigrateSecurityIndexFieldTaskParams(oldState.indexExists()),
                         TimeValue.timeValueHours(1), // TODO is this reasonable?
                         ActionListener.wrap(
-                            (response) -> { logger.info("Start migration submitted"); },
+                            (response) -> { logger.info("Migration completed"); },
                             // This would be nice to track using metrics and also disable query on metadata if the migration fails.
                             (exception) -> logger.warn("Security Index Field Migration failed: " + exception)
                         )
