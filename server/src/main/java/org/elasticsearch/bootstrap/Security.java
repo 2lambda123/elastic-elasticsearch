@@ -9,6 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExclusiveFileAccessPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -35,6 +36,7 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +46,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.lang.invoke.MethodType.methodType;
+import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.OPERATOR_DIRECTORY;
@@ -119,14 +122,16 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
+        Policy mainPolicy = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases);
+        Map<URL, Policy> pluginPolicies = getPluginAndModulePermissions(environment);
         Policy.setPolicy(
             new ESPolicy(
-                codebases,
+                mainPolicy,
                 createPermissions(environment, pidFile),
-                getPluginAndModulePermissions(environment),
+                pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
-                createForbiddenFilePermissions(environment)
+                readExclusiveFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
             )
         );
 
@@ -146,8 +151,8 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
-        Map<String, Policy> map = new HashMap<>();
+    static Map<URL, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
+        Map<URL, Policy> map = new HashMap<>();
         Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
             if (pluginPolicy == null) {
                 return;
@@ -155,7 +160,7 @@ final class Security {
 
             // consult this policy for each of the plugin's jars:
             for (URL jar : pluginPolicy.jars()) {
-                if (map.put(jar.getFile(), pluginPolicy.policy()) != null) {
+                if (map.put(jar, pluginPolicy.policy()) != null) {
                     // just be paranoid ok?
                     throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
                 }
@@ -189,16 +194,35 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static List<FilePermission> createForbiddenFilePermissions(Environment environment) throws IOException {
-        Permissions policy = new Permissions();
-        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink,write,delete,execute");
-        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink,write,delete,execute");
-        Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
-        if (Files.isDirectory(jvmOptionsD)) {
-            // we don't want to create this if it doesn't exist
-            addDirectoryPath(policy, "forbidden_access", jvmOptionsD, "read,readlink,write,delete,execute", false);
+    private static Map<String, Set<URL>> readExclusiveFiles(
+        Environment environment,
+        Policy template,
+        Collection<URL> mainCodebases,
+        Map<URL, Policy> pluginPolicies
+    ) throws IOException {
+        Map<String, Set<URL>> exclusiveFiles = new HashMap<>();
+
+        // always add some config files as exclusive files that no one can access
+        // there's no reason for anyone to read these once the security manager is initialized
+        exclusiveFiles.put(environment.configFile().resolve("elasticsearch.yml").toString(), new HashSet<>());
+        exclusiveFiles.put(environment.configFile().resolve("jvm.options").toString(), new HashSet<>());
+        exclusiveFiles.put(environment.configFile().resolve("jvm.options.d/-").toString(), new HashSet<>());
+
+        for (URL url : mainCodebases) {
+            PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
+                .stream()
+                .filter(p -> p instanceof ExclusiveFileAccessPermission)
+                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(url));
         }
-        return toFilePermissions(policy);
+
+        for (var pp : pluginPolicies.entrySet()) {
+            PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
+                .stream()
+                .filter(p -> p instanceof ExclusiveFileAccessPermission)
+                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));
+        }
+
+        return exclusiveFiles;
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */
