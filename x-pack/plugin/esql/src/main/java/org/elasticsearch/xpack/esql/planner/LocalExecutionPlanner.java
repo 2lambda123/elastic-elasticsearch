@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.HashLookupOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.DedupExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -97,6 +99,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.compute.operator.DedupOperator.DedupOperatorFactory;
 import static org.elasticsearch.compute.operator.LimitOperator.Factory;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
@@ -194,6 +197,8 @@ public class LocalExecutionPlanner {
             return planGrok(grok, context);
         } else if (node instanceof ProjectExec project) {
             return planProject(project, context);
+        } else if (node instanceof DedupExec dedup) {
+            return planDedup(dedup, context);
         } else if (node instanceof FilterExec filter) {
             return planFilter(filter, context);
         } else if (node instanceof LimitExec limit) {
@@ -388,7 +393,8 @@ public class LocalExecutionPlanner {
                 asList(elementTypes),
                 asList(encoders),
                 orders,
-                context.pageSize(2000 + topNExec.estimatedRowSize())
+                context.pageSize(2000 + topNExec.estimatedRowSize()),
+                false
             ),
             source.layout
         );
@@ -537,6 +543,98 @@ public class LocalExecutionPlanner {
         }
 
         return source.with(new ProjectOperatorFactory(projectionList), layout.build());
+    }
+
+    private PhysicalOperation planDedup(DedupExec dedup, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(dedup.child(), context);
+
+        ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
+        TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int channel = 0; channel < inverse.size(); channel++) {
+            elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type());
+            encoders[channel] = switch (inverse.get(channel).type().typeName()) {
+                case "ip" -> TopNEncoder.IP;
+                case "text", "keyword" -> TopNEncoder.UTF8;
+                case "version" -> TopNEncoder.VERSION;
+                case "boolean", "null", "byte", "short", "integer", "long", "double", "float", "half_float", "datetime", "date_period",
+                    "time_duration", "object", "nested", "scaled_float", "unsigned_long", "_doc" -> TopNEncoder.DEFAULT_SORTABLE;
+                case "geo_point", "cartesian_point", "geo_shape", "cartesian_shape", "counter_long", "counter_integer", "counter_double" ->
+                    TopNEncoder.DEFAULT_UNSORTABLE;
+                // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
+                case "unsupported" -> TopNEncoder.UNSUPPORTED;
+                default -> throw new EsqlIllegalArgumentException("No TopN sorting encoder for type " + inverse.get(channel).type());
+            };
+        }
+        List<TopNOperator.SortOrder> orders = dedup.order().stream().map(order -> {
+            int sortByChannel;
+            if (order.child() instanceof Attribute a) {
+                sortByChannel = source.layout.get(a.id()).channel();
+            } else {
+                throw new EsqlIllegalArgumentException("order by expression must be an attribute");
+            }
+
+            return new TopNOperator.SortOrder(
+                sortByChannel,
+                order.direction().equals(Order.OrderDirection.ASC),
+                order.nullsPosition().equals(Order.NullsPosition.FIRST)
+            );
+        }).toList();
+
+        int limit = dedup.limit();
+
+        // TODO Replace page size with passing estimatedRowSize down
+        /*
+         * The 2000 below is a hack to account for incoming size and to make
+         * sure the estimated row size is never 0 which'd cause a divide by 0.
+         * But we should replace this with passing the estimate into the real
+         * topn and letting it actually measure the size of rows it produces.
+         * That'll be more accurate. And we don't have a path for estimating
+         * incoming rows. And we don't need one because we can estimate.
+         */
+        return source.with(
+            new TopNOperatorFactory(
+                limit,
+                asList(elementTypes),
+                asList(encoders),
+                orders,
+                context.pageSize(2000 + dedup.estimatedRowSize()),
+                true
+            ),
+            source.layout
+        );
+
+        // var source = plan(dedup.child(), context);
+        // List<? extends NamedExpression> fields = dedup.fields();
+        // List<Integer> projectionList = new ArrayList<>(fields.size());
+
+        // Layout.Builder layout = new Layout.Builder();
+        // Map<Integer, Layout.ChannelSet> inputChannelToOutputIds = new HashMap<>();
+        // for (int index = 0, size = fields.size(); index < size; index++) {
+        //     NamedExpression ne = fields.get(index);
+
+        //     NameId inputId = null;
+        //     if (ne instanceof Alias a) {
+        //         inputId = ((NamedExpression) a.child()).id();
+        //     } else {
+        //         inputId = ne.id();
+        //     }
+        //     Layout.ChannelAndType input = source.layout.get(inputId);
+        //     Layout.ChannelSet channelSet = inputChannelToOutputIds.get(input.channel());
+        //     if (channelSet == null) {
+        //         channelSet = new Layout.ChannelSet(new HashSet<>(), input.type());
+        //         channelSet.nameIds().add(ne.id());
+        //         layout.append(channelSet);
+        //     } else {
+        //         channelSet.nameIds().add(ne.id());
+        //     }
+        //     if (channelSet.type() != input.type()) {
+        //         throw new IllegalArgumentException("type mismatch for aliases");
+        //     }
+        //     projectionList.add(input.channel());
+        // }
+
+        // return source.with(new DedupOperatorFactory(projectionList), source.layout);
     }
 
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
