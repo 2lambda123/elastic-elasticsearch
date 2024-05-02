@@ -41,6 +41,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 
 public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExecutor<MigrateSecurityIndexFieldTaskParams> {
     private static final Logger logger = LogManager.getLogger(MigrateSecurityIndexFieldServiceExecutor.class);
@@ -69,19 +70,6 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, MigrateSecurityIndexFieldTaskParams params, PersistentTaskState state) {
-        SecurityIndexManager securityIndex = securitySystemIndices.getMainIndexManager();
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
-
-        if (params.getMigrationNeeded() == false) {
-            this.writeMetadataMigrated(
-                ActionListener.wrap(
-                    (response) -> logger.info("Migration not needed, updated."),
-                    (exception -> logger.warn("Updating migration status failed: " + exception))
-                ),
-                true
-            );
-        }
-
         ActionListener<Void> listener = ActionListener.wrap((res) -> {
             logger.info("Security Index Field Migration complete - written to cluster state");
             task.markAsCompleted();
@@ -90,10 +78,12 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
             task.markAsFailed(exception);
         });
 
-        if (frozenSecurityIndex.indexExists() == false || frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
-            // TODO should we handle isAvailable better?
-            logger.info("security index not available");
-            this.writeMetadataMigrated(listener, true);
+        SecurityIndexManager securityIndex = securitySystemIndices.getMainIndexManager();
+
+        if (params.getMigrationNeeded() == false) {
+            this.writeMetadataMigrated(listener);
+        } else if (securityIndex.isAvailable(PRIMARY_SHARDS) == false || securityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(new IllegalStateException("Security index not available"));
         } else {
             UpdateByQueryRequestBuilder updateByQueryRequestBuilder = new UpdateByQueryRequestBuilder(client);
             updateByQueryRequestBuilder.filter(
@@ -110,7 +100,7 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
             );
 
             securityIndex.checkIndexVersionThenExecute(
-                (exception) -> logger.warn("Couldn't query security index " + exception),
+                listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
@@ -118,8 +108,8 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
                     updateByQueryRequestBuilder.request(),
                     ActionListener.wrap(bulkByScrollResponse -> {
                         logger.info("Migrated [{}] security index fields", bulkByScrollResponse.getUpdated());
-                        this.writeMetadataMigrated(listener, true);
-                    }, (exception) -> logger.info("Updating security index fields failed!" + exception))
+                        this.writeMetadataMigrated(listener);
+                    }, listener::onFailure)
                 )
             );
         }
@@ -131,17 +121,16 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
             Map<String, String> customMetadata = indexMetadata.getCustomData(MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_META_KEY);
             if (customMetadata != null) {
                 String result = customMetadata.get("completed");
-                logger.info("COMPLETED? " + result);
                 return result == null || Boolean.parseBoolean(result) == false;
             }
         }
         return true;
     }
 
-    public void writeMetadataMigrated(ActionListener<Void> listener, boolean value) {
+    public void writeMetadataMigrated(ActionListener<Void> listener) {
         this.migrateSecurityIndexFieldCompletedTaskQueue.submitTask(
             "Updating cluster state to show that the security index field migration has been completed",
-            new UpdateSecurityIndexFieldMigrationCompleteTask(value, listener),
+            new UpdateSecurityIndexFieldMigrationCompleteTask(listener),
             null
         );
     }
@@ -180,10 +169,8 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
 
     public static class UpdateSecurityIndexFieldMigrationCompleteTask implements ClusterStateTaskListener {
         private final ActionListener<Void> listener;
-        private final boolean value;
 
-        UpdateSecurityIndexFieldMigrationCompleteTask(boolean value, ActionListener<Void> listener) {
-            this.value = value;
+        UpdateSecurityIndexFieldMigrationCompleteTask(ActionListener<Void> listener) {
             this.listener = listener;
         }
 
@@ -193,7 +180,7 @@ public class MigrateSecurityIndexFieldServiceExecutor extends PersistentTasksExe
                 logger.info("Updating cluster state with security index migration completed");
                 IndexMetadata updatededIndexMetadata = new IndexMetadata.Builder(indexMetadata).putCustom(
                     MIGRATE_SECURITY_INDEX_FIELD_COMPLETED_META_KEY,
-                    Map.of("completed", Boolean.toString(value))
+                    Map.of("completed", "true")
                 ).build();
                 Metadata metadata = Metadata.builder(currentState.metadata()).put(updatededIndexMetadata, true).build();
                 return ClusterState.builder(currentState).metadata(metadata).build();
