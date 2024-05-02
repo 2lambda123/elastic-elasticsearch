@@ -744,15 +744,14 @@ public class Security extends Plugin
 
         // Add a state listener to see if a migration of metadata is needed after a security index state change
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            logger.info("INDEX EXISTS: OLD " + oldState.indexExists() + " NEW: " + newState.indexExists());
             if (featureService.clusterHasFeature(clusterService.state(), SecuritySystemIndices.SECURITY_METADATA_MIGRATED)) {
                 if (this.migrateSecurityIndexFieldServiceExecutor.get().shouldStartMetadataMigration(clusterService.state())) {
                     persistentTasksService.sendStartRequest(
                         // The constant id guarantees that this job only runs once
-                        // This could be one per model if we want to split this into several backfills
-                        "migrate-security-field-task-id", // This can be changed to UUID.randomUUID().toString() to do local testing
+                        "migrate-security-field-task-id",
                         MigrateSecurityIndexFieldTaskParams.TASK_NAME,
-                        new MigrateSecurityIndexFieldTaskParams(newState.indexExists() || oldState.indexExists()),
+                        // Migration only needed if index already existed
+                        new MigrateSecurityIndexFieldTaskParams(oldState.indexExists()),
                         TimeValue.timeValueHours(1), // TODO is this reasonable?
                         ActionListener.wrap(
                             (response) -> { logger.info("Start migration submitted"); },
