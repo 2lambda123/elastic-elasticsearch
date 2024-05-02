@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
@@ -825,15 +826,15 @@ public class StatementParserTests extends ESTestCase {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards (*) in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
+        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards (*) in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -1033,6 +1034,16 @@ public class StatementParserTests extends ESTestCase {
         expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
         expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
         expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+    }
+
+    public void testLookup() {
+        var plan = statement("ROW a = 1 | LOOKUP t ON j");
+        var lookup = as(plan, Lookup.class);
+        var tableName = as(lookup.tableName(), UnresolvedAttribute.class);
+        assertThat(tableName.name(), equalTo("t"));
+        assertThat(lookup.matchFields(), hasSize(1));
+        var matchField = as(lookup.matchFields().get(0), UnresolvedAttribute.class);
+        assertThat(matchField.name(), equalTo("j"));
     }
 
     public void testInlineConvertUnsupportedType() {

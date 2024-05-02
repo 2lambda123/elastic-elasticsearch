@@ -31,6 +31,7 @@ processingCommand
     : evalCommand
     | inlinestatsCommand
     | limitCommand
+    | lookupCommand
     | keepCommand
     | sortCommand
     | statsCommand
@@ -154,6 +155,10 @@ qualifiedNamePattern
     : identifierPattern (DOT identifierPattern)*
     ;
 
+qualifiedNamePatterns
+    : qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    ;
+
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
@@ -189,11 +194,11 @@ orderExpression
     ;
 
 keepCommand
-    :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    :  KEEP qualifiedNamePatterns
     ;
 
 dropCommand
-    : DROP qualifiedNamePattern (COMMA qualifiedNamePattern)*
+    : DROP qualifiedNamePatterns
     ;
 
 renameCommand
@@ -271,4 +276,8 @@ enrichCommand
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+lookupCommand
+    : LOOKUP tableName=qualifiedNamePattern ON matchFields=qualifiedNamePatterns
     ;

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PARTIAL;
@@ -155,6 +158,13 @@ public class Mapper {
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()
+            );
+        }
+
+        if (p instanceof Lookup lookup) {
+            return new HashJoinExec(lookup.source(), child, null, emptyList(), null, null
+            // lookup.matchValues(),
+            // lookup.mergeValues()
             );
         }
 

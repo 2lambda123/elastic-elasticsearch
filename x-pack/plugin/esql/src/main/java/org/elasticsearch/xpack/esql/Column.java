@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.io.IOException;
 
 /**
- * A column of data provided in the request.
+ * A "column" from a {@code table} provided in the request.
  */
 public record Column(DataType type, Block values) implements Releasable, Writeable {
     public Column(BlockStreamInput in) throws IOException {
