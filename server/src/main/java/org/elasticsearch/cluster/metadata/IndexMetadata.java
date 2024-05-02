@@ -137,6 +137,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
+    // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
+    public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
+
     @Nullable
     public String getDownsamplingInterval() {
         return settings.get(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL_KEY);
@@ -533,6 +536,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
     static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
+    static final String KEY_EVENT_INGESTED_RANGE = "event_ingested_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
     public static final String KEY_STATS = "stats";
 
@@ -597,7 +601,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSystem;
     private final boolean isHidden;
 
+    // range for the @timestamp field for the Index
     private final IndexLongFieldRange timestampRange;
+    // range for the event.ingested field for the Index
+    private final IndexLongFieldRange eventIngestedRange;
 
     private final int priority;
 
@@ -663,6 +670,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean isSystem,
         final boolean isHidden,
         final IndexLongFieldRange timestampRange,
+        final IndexLongFieldRange eventIngestedRange,
         final int priority,
         final long creationDate,
         final boolean ignoreDiskWatermarks,
@@ -716,6 +724,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert isHidden == INDEX_HIDDEN_SETTING.get(settings);
         this.isHidden = isHidden;
         this.timestampRange = timestampRange;
+        this.eventIngestedRange = eventIngestedRange;
         this.priority = priority;
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
@@ -771,6 +780,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             this.timestampRange,
+            this.eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -830,6 +840,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             this.timestampRange,
+            this.eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -887,6 +898,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             this.timestampRange,
+            this.eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -908,11 +920,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * @param timestampRange new timestamp range
+     * @param timestampRange new @timestamp range
+     * @param eventIngestedRange new event.ingested range
      * @return copy of this instance with updated timestamp range
      */
-    public IndexMetadata withTimestampRange(IndexLongFieldRange timestampRange) {
-        if (timestampRange.equals(this.timestampRange)) {
+    public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
+        if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
         return new IndexMetadata(
@@ -944,6 +957,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             timestampRange,
+            eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -997,6 +1011,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isSystem,
             this.isHidden,
             this.timestampRange,
+            this.eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -1343,6 +1358,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return timestampRange;
     }
 
+    public IndexLongFieldRange getEventIngestedRange() {
+        return eventIngestedRange;
+    }
+
     /**
      * @return whether this index has a time series timestamp range
      */
@@ -1494,7 +1513,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<Map<Integer, Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
+
+        // range for the @timestamp field for the Index
         private final IndexLongFieldRange timestampRange;
+        // range for the event.ingested field for the Index
+        private final IndexLongFieldRange eventIngestedRange;
+
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
         private final Long shardSizeInBytesForecast;
@@ -1532,6 +1556,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
             timestampRange = after.timestampRange;
+            eventIngestedRange = after.eventIngestedRange;
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
             shardSizeInBytesForecast = after.shardSizeInBytesForecast;
@@ -1605,6 +1630,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 indexWriteLoadForecast = null;
                 shardSizeInBytesForecast = null;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                eventIngestedRange = IndexLongFieldRange.readFrom(in);
+            } else {
+                eventIngestedRange = IndexLongFieldRange.UNKNOWN; // MP TODO: is this the right choice?
+            }
         }
 
         @Override
@@ -1643,6 +1673,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                eventIngestedRange.writeTo(out);
+            }
         }
 
         @Override
@@ -1670,6 +1703,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
+            builder.eventIngestedRange(eventIngestedRange);
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
@@ -1744,6 +1778,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
+        }
         return builder.build(true);
     }
 
@@ -1793,6 +1830,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalDouble(writeLoadForecast);
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            eventIngestedRange.writeTo(out);
+        }
     }
 
     @Override
@@ -1839,6 +1879,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
+        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.NO_SHARDS;
         private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;
@@ -1872,6 +1913,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
+            this.eventIngestedRange = indexMetadata.eventIngestedRange;
             this.lifecycleExecutionState = indexMetadata.lifecycleExecutionState;
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;
@@ -2090,6 +2132,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
+            this.eventIngestedRange = eventIngestedRange;
+            return this;
+        }
+
         public Builder stats(IndexMetadataStats stats) {
             this.stats = stats;
             return this;
@@ -2294,6 +2342,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSystem,
                 INDEX_HIDDEN_SETTING.get(settings),
                 timestampRange,
+                eventIngestedRange,
                 IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
@@ -2422,6 +2471,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             indexMetadata.timestampRange.toXContent(builder, params);
             builder.endObject();
 
+            builder.startObject(KEY_EVENT_INGESTED_RANGE);
+            indexMetadata.eventIngestedRange.toXContent(builder, params);
+            builder.endObject();
+
             if (indexMetadata.stats != null) {
                 builder.startObject(KEY_STATS);
                 indexMetadata.stats.toXContent(builder, params);
@@ -2517,6 +2570,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             break;
                         case KEY_TIMESTAMP_RANGE:
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
+                            break;
+                        case KEY_EVENT_INGESTED_RANGE:
+                            builder.eventIngestedRange(IndexLongFieldRange.fromXContent(parser));
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

@@ -313,6 +313,9 @@ public class ClusterStateTests extends ESTestCase {
                                 "timestamp_range": {
                                   "shards": []
                                 },
+                                "event_ingested_range": {
+                                  "shards": []
+                                },
                                 "stats": {
                                     "write_load": {
                                       "loads": [-1.0],
@@ -574,6 +577,9 @@ public class ClusterStateTests extends ESTestCase {
                             },
                             "system" : false,
                             "timestamp_range" : {
+                              "shards" : [ ]
+                            },
+                            "event_ingested_range" : {
                               "shards" : [ ]
                             },
                             "stats" : {
@@ -849,6 +855,9 @@ public class ClusterStateTests extends ESTestCase {
                             "timestamp_range" : {
                               "shards" : [ ]
                             },
+                            "event_ingested_range" : {
+                              "shards" : [ ]
+                            },
                             "stats" : {
                               "write_load" : {
                                 "loads" : [
@@ -1016,6 +1025,9 @@ public class ClusterStateTests extends ESTestCase {
                     "rollover_info" : { },
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
