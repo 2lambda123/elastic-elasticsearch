@@ -753,11 +753,12 @@ public class Security extends Plugin
                         MigrateSecurityIndexFieldTaskParams.TASK_NAME,
                         // Migration only needed if index already existed
                         new MigrateSecurityIndexFieldTaskParams(oldState.indexExists()),
-                        TimeValue.timeValueHours(1), // TODO is this reasonable?
-                        ActionListener.wrap(
-                            (response) -> { logger.info("Migration completed"); },
+                        null,
+                        ActionListener.wrap((response) -> {
+                            logger.trace("Security index field migration task submitted");
+                        },
                             // This would be nice to track using metrics and also disable query on metadata if the migration fails.
-                            (exception) -> logger.warn("Security Index Field Migration failed: " + exception)
+                            (exception) -> logger.warn("Submit security index field migration task failed: " + exception)
                         )
                     );
                 }

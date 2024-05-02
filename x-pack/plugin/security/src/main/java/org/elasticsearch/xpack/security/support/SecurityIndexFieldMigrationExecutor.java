@@ -106,7 +106,7 @@ public class SecurityIndexFieldMigrationExecutor extends PersistentTasksExecutor
                     UpdateByQueryAction.INSTANCE,
                     updateByQueryRequestBuilder.request(),
                     ActionListener.wrap(bulkByScrollResponse -> {
-                        logger.info("Migrated [{}] security index fields", bulkByScrollResponse.getUpdated());
+                        logger.info("Migrated [{}] security index documents", bulkByScrollResponse.getUpdated());
                         this.writeMetadataMigrated(listener);
                     }, listener::onFailure)
                 )
