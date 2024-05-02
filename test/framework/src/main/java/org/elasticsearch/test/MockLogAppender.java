@@ -19,7 +19,9 @@ import org.elasticsearch.core.Releasable;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
@@ -31,12 +33,35 @@ import static org.hamcrest.Matchers.is;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender extends AbstractAppender {
+public class MockLogAppender {
 
+    private static final Logger logger = LogManager.getLogger(MockLogAppender.class);
+    private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
+    private static final RealMockAppender parent = new RealMockAppender();
     private final List<WrappedLoggingExpectation> expectations;
+    private final AtomicBoolean isAlive = new AtomicBoolean(true);
+
+    private static class RealMockAppender extends AbstractAppender {
+
+        RealMockAppender() {
+            super("mock", null, null, false, Property.EMPTY_ARRAY);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            List<MockLogAppender> appenders = mockAppenders.getOrDefault(event.getLoggerName(), List.of());
+            for (MockLogAppender appender : appenders) {
+                if (appender.isAlive.get() == false) {
+                    continue;
+                }
+                for (LoggingExpectation expectation : appender.expectations) {
+                    expectation.match(event);
+                }
+            }
+        }
+    }
 
     public MockLogAppender() {
-        super("mock", null, null, false, Property.EMPTY_ARRAY);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -45,15 +70,16 @@ public class MockLogAppender extends AbstractAppender {
         expectations = new CopyOnWriteArrayList<>();
     }
 
-    public void addExpectation(LoggingExpectation expectation) {
-        expectations.add(new WrappedLoggingExpectation(expectation));
+    /**
+     * Initialize the mock log appender with the log4j system.
+     */
+    public static void init() {
+        parent.start();
+        Loggers.addAppender(LogManager.getLogger(""), parent);
     }
 
-    @Override
-    public void append(LogEvent event) {
-        for (LoggingExpectation expectation : expectations) {
-            expectation.match(event);
-        }
+    public void addExpectation(LoggingExpectation expectation) {
+        expectations.add(new WrappedLoggingExpectation(expectation));
     }
 
     public void assertAllExpectationsMatched() {
@@ -243,29 +269,38 @@ public class MockLogAppender extends AbstractAppender {
     /**
      * Adds the list of class loggers to this {@link MockLogAppender}.
      *
-     * Stops ({@link #stop()}) and runs some checks on the {@link MockLogAppender} once the returned object is released.
+     * Stops and runs some checks on the {@link MockLogAppender} once the returned object is released.
      */
     public Releasable capturing(Class<?>... classes) {
-        return appendToLoggers(Arrays.stream(classes).map(LogManager::getLogger).toList());
+        return appendToLoggers(Arrays.stream(classes).map(Class::getCanonicalName).toList());
     }
 
     /**
      * Same as above except takes string class names of each logger.
      */
     public Releasable capturing(String... names) {
-        return appendToLoggers(Arrays.stream(names).map(LogManager::getLogger).toList());
+        return appendToLoggers(Arrays.asList(names));
     }
 
-    private Releasable appendToLoggers(List<Logger> loggers) {
-        start();
-        for (final var logger : loggers) {
-            Loggers.addAppender(logger, this);
+    private Releasable appendToLoggers(List<String> loggers) {
+        for (String logger : loggers) {
+            mockAppenders.compute(logger, (k, v) -> {
+                if (v == null) {
+                    v = new CopyOnWriteArrayList<>();
+                }
+                v.add(this);
+                return v;
+            });
         }
         return () -> {
-            for (final var logger : loggers) {
-                Loggers.removeAppender(logger, this);
+            isAlive.set(false);
+            for (String logger : loggers) {
+                mockAppenders.compute(logger, (k, v) -> {
+                    assert v != null;
+                    v.remove(this);
+                    return v.isEmpty() ? null : v;
+                });
             }
-            stop();
             // check that all expectations have been evaluated before this is released
             for (WrappedLoggingExpectation expectation : expectations) {
                 assertThat(
