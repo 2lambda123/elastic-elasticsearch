@@ -402,9 +402,11 @@ public class TransformSchedulerTests extends ESTestCase {
         TransformScheduler.Listener listener = events::add;
 
         TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams1, listener);
         transformScheduler.registerTransform(transformTaskParams2, listener);
         transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(3)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(
@@ -462,5 +464,9 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(3).transformId(), is(equalTo(transformId1)));
         assertThat(events.get(4).transformId(), is(equalTo(transformId2)));
         assertThat(events.get(5).transformId(), is(equalTo(transformId3)));
+    }
+
+    public void testGetRegisteredTransformCount() {
+
     }
 }
